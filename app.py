@@ -21,7 +21,7 @@ DB_FILE = DATA_DIR / 'esi_tickets.db'
 TICKETS_SUB = 'tickets'
 FILES_SUB = 'fichiers'
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 app = Flask(__name__, template_folder='templates', static_folder='static')
