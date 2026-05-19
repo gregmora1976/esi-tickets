@@ -1,3 +1,4 @@
+from supabase import create_client
 from supabase_upload import upload_file_to_supabase
 from flask import Flask, render_template, jsonify, request, send_file, abort, redirect, url_for
 from pathlib import Path
@@ -19,7 +20,10 @@ CONFIG_FILE = DATA_DIR / 'config.json'
 DB_FILE = DATA_DIR / 'esi_tickets.db'
 TICKETS_SUB = 'tickets'
 FILES_SUB = 'fichiers'
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
 def choose_shared_folder():
@@ -415,12 +419,23 @@ def api_create_ticket():
     }
     folder = ticket_folder(ticket_id)
     for fs in request.files.getlist('files'):
-        if not fs.filename:
-            continue
-        dest = folder / fs.filename
-        fs.save(dest)
-        size = dest.stat().st_size if dest.exists() else None
-        ticket['files'].append({'name': fs.filename, 'size': size})
+    if not fs.filename:
+        continue
+
+    content = fs.read()
+
+    supabase.storage.from_("uploads").upload(
+        f"{ticket_id}/{fs.filename}",
+        content,
+        {"content-type": fs.content_type}
+    )
+
+    size = len(content)
+
+    ticket['files'].append({
+        'name': fs.filename,
+        'size': size
+    })
     save_ticket(ticket)
     return jsonify({'ok': True, 'id': ticket_id})
 
