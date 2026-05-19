@@ -432,7 +432,7 @@ def api_create_ticket():
             file_options={
                 "content-type": fs.content_type
     }
-    )
+)
         
 
         ticket['files'].append({
