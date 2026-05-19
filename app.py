@@ -417,8 +417,8 @@ def api_create_ticket():
         'files': [],
         'managerSheets': []
     }
-folder = ticket_folder(ticket_id)
-for fs in request.files.getlist('files'):
+    folder = ticket_folder(ticket_id)
+    for fs in request.files.getlist('files'):
     if not fs.filename:
         continue
 
