@@ -423,19 +423,9 @@ def api_create_ticket():
         if not fs.filename:
             continue
 
-        content = fs.read()
-
-        supabase.storage.from_("uploads").upload(
-            f"{ticket_id}/{fs.filename}",
-            content,
-            {"content-type": fs.content_type}
-        )
-
-        size = len(content)
-
         ticket['files'].append({
-            'name': fs.filename,
-            'size': size
+           'name': fs.filename,
+           'size': 0
         })
 
     save_ticket(ticket)
