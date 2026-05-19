@@ -1,0 +1,788 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ESI - Gestion Tickets</title>
+  <link rel="icon" type="image/jpeg" href="{{ url_for('static', filename='logo.jpg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+<style>
+  .info.comment-wide{
+    grid-column:1 / -1;
+  }
+  .comment-display{
+    white-space:pre-wrap;
+    min-height:120px;
+    background:#f8fafc;
+    border:1px solid #e2e8f0;
+    border-radius:14px;
+    padding:12px;
+    line-height:1.45;
+  }
+  .comment-edit-large{
+    width:100%;
+    min-height:180px;
+    resize:vertical;
+  }
+</style>
+
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-left">
+    <img src="{{ url_for('static', filename='logo.jpg') }}" onerror="this.style.display='none'">
+    <div>
+      <div class="title">ESI - Gestion Tickets</div>
+      <div class="sub">Portail gestionnaire</div>
+    </div>
+  </div>
+  <div style="font-size:12px;opacity:.75;">Interface métier ESI</div>
+</div>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="hero-top">
+      <img class="logo-big" src="{{ url_for('static', filename='logo.jpg') }}" onerror="this.style.display='none'">
+      <div>
+        <div class="eyebrow">ESI Tickets</div>
+        <h1>GESTION TICKETS</h1>
+        <p class="sub">Suivi, traitement et validation des tickets</p>
+      </div>
+    </div>
+    <div class="content">
+      <section class="card top-actions">
+        <div>
+          <div class="section-title" style="margin-bottom:6px">Gestion des tickets</div>
+          <div class="small">Le dossier partagé est géré automatiquement par l'application Python.</div>
+          <div class="folder-state" id="folderState" style="margin-top:10px">Chargement...</div>
+        </div>
+        <div class="actions">
+          <button class="btn secondary" id="refreshBtn" type="button">Rafraîchir</button>
+          <button class="btn secondary" id="openDemandeur" type="button">Ouvrir le portail demandeur</button>
+          <button class="btn primary" id="exportExcel" type="button">Exporter Excel</button>
+        </div>
+      </section>
+
+      <div class="layout">
+        <section class="card">
+          <div class="section-title">Vue rapide</div>
+          <div class="quick-grid">
+            <div class="quick-card kpi-active"><div class="k">Tickets actifs</div><div class="v" id="countCreated">0</div></div>
+            <div class="quick-card kpi-progress"><div class="k">En cours</div><div class="v" id="countProgress">0</div></div>
+            <div class="quick-card kpi-new"><div class="k">Demandes créées</div><div class="v" id="countNew">0</div></div>
+            <div class="quick-card kpi-done"><div class="k">Terminés</div><div class="v" id="countDone">0</div></div>
+          </div>
+          <div style="height:16px"></div>
+          <div class="filters" id="moduleFilters">
+            <button class="pill active" type="button" data-filter="all">Tous</button>
+            <button class="pill" type="button" data-filter="Fiche de caisse">📦 Fiches de caisse</button>
+            <button class="pill" type="button" data-filter="Demande de devis">💰 Demandes de devis</button>
+            <button class="pill" type="button" data-filter="Demande Aller voir">📅 Demandes Aller voir</button>
+          </div>
+          <div style="height:10px"></div>
+          <div class="filters" id="statusFilters">
+            <button class="pill active" type="button" data-status-filter="all">Tous statuts</button>
+            <button class="pill" type="button" data-status-filter="Demande créée">Demandes créées</button>
+            <button class="pill" type="button" data-status-filter="En cours">En cours</button>
+            <button class="pill" type="button" data-status-filter="Terminé">Terminés</button>
+            <button class="pill" type="button" data-status-filter="Annulé">Annulés</button>
+          </div>
+          <div style="height:12px"></div>
+          <input class="search" id="searchInput" placeholder="Recherche dossier, client, chargé commercial..." />
+          <div style="height:12px"></div>
+          <div class="table">
+            <div class="thead" id="tableHead"></div>
+            <div id="ticketTableBody"></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+            <div>
+              <div class="section-title" style="margin-bottom:6px">Détail ticket</div>
+              <h2 id="detailTitle">Sélectionne un ticket</h2>
+            </div>
+            <span class="badge status-created" id="detailStatus">Aucun</span>
+          </div>
+          <div style="height:12px"></div>
+          <div class="detail-badges" id="detailBadges"></div>
+          <div class="info-grid" id="detailGrid">
+            <div class="info"><div class="k">Info</div><div class="v">Clique sur une ligne du tableau pour voir le détail.</div></div>
+          </div>
+          <div style="height:14px"></div>
+
+          <div>
+            <h3 style="color:#0284c7;font-size:14px;margin-bottom:10px">Documents du demandeur</h3>
+            <div id="requestFiles" class="file-list"><div class="small">Aucun fichier.</div></div>
+          </div>
+
+          <div style="height:14px"></div>
+          <div>
+            <h3 style="color:#0284c7;font-size:14px;margin-bottom:10px">Feuille de caisse à renvoyer</h3>
+            <div class="drop" id="managerDrop">
+              <div class="drop-inner" id="managerDropInner">
+                <div style="font-weight:700">Glisse la feuille de caisse ici</div>
+                <div class="small" style="margin-top:6px">ou clique pour sélectionner un ou plusieurs fichiers</div>
+                <input type="file" id="managerFileInput" class="hidden" multiple />
+                <div class="actions" style="justify-content:center;margin-top:12px">
+                  <button class="btn secondary" id="chooseManagerFile" type="button">Choisir les fichiers</button>
+                </div>
+              </div>
+            </div>
+            <div id="managerSheetBox" class="file-list" style="margin-top:10px"><div class="small">Aucune feuille de caisse déposée.</div></div>
+          </div>
+
+          <div style="height:14px"></div>
+          <div>
+            <div class="actions" style="justify-content:flex-start;margin-bottom:12px">
+              <button class="btn secondary" id="openFicheBtn" type="button">Ouvrir fiche</button>
+              <button class="btn secondary" id="validateAllerVoirBtn" type="button">Valider + calendrier</button>
+              <button class="btn secondary" id="exportPdfBtn" type="button">Exporter PDF</button>
+              <button class="btn secondary" id="editTicketBtn" type="button">Modifier</button>
+              <button class="btn primary" id="saveTicketBtn" type="button" style="display:none">Enregistrer</button>
+              <button class="btn secondary" id="cancelEditBtn" type="button" style="display:none">Annuler</button>
+            </div>
+          </div>
+          <div>
+            <h3 style="color:#0284c7;font-size:14px;margin-bottom:10px">Changer le statut</h3>
+            <div class="actions">
+              <button class="btn secondary" id="statusProgress" type="button">En cours</button>
+              <button class="btn primary" id="statusDone" type="button">Terminé</button>
+              <button class="btn secondary" id="statusCancel" type="button">Annulé</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div id="ficheModal" class="hidden" style="position:fixed;inset:0;background:rgba(2,6,23,.45);z-index:1000;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;width:min(760px,100%);border:1px solid #dbe7f0;border-radius:22px;box-shadow:0 12px 30px rgba(15,23,42,.18);padding:22px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px">
+      <div>
+        <div class="section-title" style="margin-bottom:4px">Fiche ticket</div>
+        <div class="small">Ces données sont enregistrées sur le ticket pour une future exploitation statistique.</div>
+      </div>
+      <button class="btn secondary" id="closeFicheBtn" type="button">Fermer</button>
+    </div>
+    <div class="info-grid">
+      <div class="field"><label>Longueur</label><input class="input" id="fiche-longueur" /></div><div class="field"><label>Largeur</label><input class="input" id="fiche-largeur" /></div><div class="field"><label>Hauteur</label><input class="input" id="fiche-hauteur" /></div>
+      <div class="field"><label>Prix d'achat</label><input class="input" id="fiche-prix-achat" /></div>
+      <div class="field"><label>Type de caisse</label><input class="input" id="fiche-type-caisse" /></div>
+      <div class="field"><label>Bilan carbone</label><input class="input" id="fiche-bilan-carbone" /></div>
+      <div class="field"><label>Poids</label><input class="input" id="fiche-poids" /></div>
+      <div class="field"><label>Choix du caissier</label><input class="input" id="fiche-choix-caissier" /></div>
+    </div>
+    <div class="actions" style="justify-content:flex-end;margin-top:18px">
+      <button class="btn primary" id="saveFicheBtn" type="button">Enregistrer la fiche</button>
+    </div>
+  </div>
+</div>
+
+<div class="notice" id="notice"></div>
+<script>
+function showNotice(message){
+  const notice=document.getElementById('notice');
+  notice.textContent=message;
+  notice.classList.add('show');
+  clearTimeout(window.__noticeTimer);
+  window.__noticeTimer=setTimeout(()=>notice.classList.remove('show'),2600);
+}
+function escapeHtml(str){return String(str).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function fmtDateFR(iso){ try { return new Date(iso).toLocaleString('fr-FR'); } catch(e){ return iso || '-'; } }
+function formatDateSimpleFR(dateStr){
+  if(!dateStr || dateStr === '-') return '-';
+  const parts = String(dateStr).split('-');
+  if(parts.length === 3){
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  try{
+    const d = new Date(dateStr);
+    if(!isNaN(d)) return d.toLocaleDateString('fr-FR');
+  }catch(e){}
+  return dateStr;
+}
+function getPriorityLevel(dateStr){
+  if(!dateStr || dateStr==='-') return 'normal';
+  const target = new Date(dateStr + 'T23:59:59');
+  if (isNaN(target)) return 'normal';
+  const now = new Date();
+  const diffDays = Math.ceil((target - now) / (1000*60*60*24));
+  if (diffDays <= 2) return 'high';
+  if (diffDays <= 7) return 'medium';
+  return 'normal';
+}
+function getPriorityLabel(level){
+  if(level==='high') return 'Urgent';
+  if(level==='medium') return 'Proche';
+  return 'Standard';
+}
+function updateStatusButtons(status){
+  const p=document.getElementById('statusProgress');
+  const d=document.getElementById('statusDone');
+  const c=document.getElementById('statusCancel');
+  [p,d,c].forEach(b=>{b.style.background='';b.style.color='';});
+  if(status==='En cours'){p.style.background='#fef3c7';}
+  if(status==='Terminé'){d.style.background='#dcfce7';}
+  if(status==='Annulé'){c.style.background='#fee2e2';}
+}
+function badgeClass(status){
+  if(status==='Demande créée') return 'status-created';
+  if(status==='En cours') return 'status-progress';
+  if(status==='Terminé') return 'status-done';
+  return 'status-cancel';
+}
+
+const ficheModal = document.getElementById('ficheModal');
+const ficheFields = {
+  longueur: document.getElementById('fiche-longueur'),
+  largeur: document.getElementById('fiche-largeur'),
+  hauteur: document.getElementById('fiche-hauteur'),
+  prixAchat: document.getElementById('fiche-prix-achat'),
+  typeCaisseFiche: document.getElementById('fiche-type-caisse'),
+  bilanCarbone: document.getElementById('fiche-bilan-carbone'),
+  poids: document.getElementById('fiche-poids'),
+  choixCaissier: document.getElementById('fiche-choix-caissier')
+};
+
+async function openFicheModal(){
+  const ticket=state.tickets.find(t=>t.id===state.selectedTicketId);
+  if(!ticket){showNotice('Sélectionne un ticket.');return;}
+  try{
+    const res = await fetch(`/api/tickets/${encodeURIComponent(ticket.id)}/fiche`);
+    const data = await res.json();
+    ficheFields.longueur.value = data.longueur || '';
+    ficheFields.largeur.value = data.largeur || '';
+    ficheFields.hauteur.value = data.hauteur || '';
+    ficheFields.prixAchat.value = data.prixAchat || '';
+    ficheFields.typeCaisseFiche.value = data.typeCaisseFiche || '';
+    ficheFields.bilanCarbone.value = data.bilanCarbone || '';
+    ficheFields.poids.value = data.poids || '';
+    ficheFields.choixCaissier.value = data.choixCaissier || '';
+    ficheModal.classList.remove('hidden');
+    ficheModal.style.display = 'flex';
+  }catch(e){
+    showNotice('Impossible d’ouvrir la fiche');
+  }
+}
+function closeFicheModal(){
+  ficheModal.classList.add('hidden');
+  ficheModal.style.display = 'none';
+}
+async function saveFicheModal(){
+  const ticket=state.tickets.find(t=>t.id===state.selectedTicketId);
+  if(!ticket){showNotice('Sélectionne un ticket.');return;}
+  const payload = {
+    longueur: ficheFields.longueur.value.trim(),
+    largeur: ficheFields.largeur.value.trim(),
+    hauteur: ficheFields.hauteur.value.trim(),
+    prixAchat: (ficheFields.prixAchat.value.trim() && !ficheFields.prixAchat.value.includes('€')) ? ficheFields.prixAchat.value.trim()+' €' : ficheFields.prixAchat.value.trim(),
+    typeCaisseFiche: ficheFields.typeCaisseFiche.value.trim(),
+    bilanCarbone: ficheFields.bilanCarbone.value.trim(),
+    poids: ficheFields.poids.value.trim(),
+    choixCaissier: ficheFields.choixCaissier.value.trim()
+  };
+  const res = await fetch(`/api/tickets/${encodeURIComponent(ticket.id)}/fiche`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if(!res.ok) return showNotice(data.error || 'Erreur enregistrement fiche');
+  showNotice('Fiche enregistrée');
+  closeFicheModal();
+  await refreshTickets();
+}
+document.getElementById('openFicheBtn').addEventListener('click', openFicheModal);
+document.getElementById('closeFicheBtn').addEventListener('click', closeFicheModal);
+document.getElementById('saveFicheBtn').addEventListener('click', saveFicheModal);
+ficheModal.addEventListener('click', (e)=>{ if(e.target === ficheModal) closeFicheModal(); });
+
+</script>
+
+<script>
+const state={tickets:[],currentFilter:'all',currentStatusFilter:'all',searchTerm:'',selectedTicketId:null,editMode:false};
+const els={tableHead:document.getElementById('tableHead'),ticketTableBody:document.getElementById('ticketTableBody'),detailTitle:document.getElementById('detailTitle'),detailStatus:document.getElementById('detailStatus'),detailGrid:document.getElementById('detailGrid'),requestFiles:document.getElementById('requestFiles'),managerSheetBox:document.getElementById('managerSheetBox'),searchInput:document.getElementById('searchInput'),countCreated:document.getElementById('countCreated'),countDone:document.getElementById('countDone'),pillBtns:document.querySelectorAll('#moduleFilters .pill'),statusPillBtns:document.querySelectorAll('#statusFilters .pill'),managerFileInput:document.getElementById('managerFileInput'),folderState:document.getElementById('folderState'),countProgress:document.getElementById('countProgress'),countNew:document.getElementById('countNew'),detailBadges:document.getElementById('detailBadges')};
+
+async function loadConfigStatus(){
+  try{
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    els.folderState.textContent = data.shared_path ? `Dossier partagé automatique : ${data.shared_path}` : 'Dossier partagé non configuré';
+  }catch(e){}
+}
+
+
+function moduleIcon(module){
+  if(module === 'Fiche de caisse') return '📦';
+  if(module === 'Demande de devis') return '💰';
+  if(module === 'Demande Aller voir') return '📅';
+  return '🎫';
+}
+
+function filteredTickets(){
+  const normalizeModule = s => String(s || '')
+    .toLowerCase()
+    .replace(/demandes/g,'demande')
+    .trim();
+
+  const list = state.tickets.filter(t=>{
+    const filterOk =
+      state.currentFilter === 'all' ||
+      normalizeModule(t.module) === normalizeModule(state.currentFilter);
+
+    const statusOk = state.currentStatusFilter === 'all' || (t.status || 'Demande créée') === state.currentStatusFilter;
+    const hay = `${t.id} ${t.dossier} ${t.ref} ${t.objet} ${t.preteur} ${t.expo} ${t.chargeProjet || ''} ${t.lieuRdv || ''} ${t.dateRdv || ''} ${t.heureRdv || ''}`.toLowerCase();
+    return filterOk && statusOk && hay.includes(state.searchTerm.toLowerCase());
+  });
+  const weight = {high:0, medium:1, normal:2};
+  list.sort((a,b)=>{
+    const pa = weight[getPriorityLevel(a.dateEmballage)];
+    const pb = weight[getPriorityLevel(b.dateEmballage)];
+    if (pa !== pb) return pa - pb;
+    return String(b.createdAt||'').localeCompare(String(a.createdAt||''));
+  });
+  return list;
+}
+async function refreshTickets(){
+  const res = await fetch('/api/tickets');
+  state.tickets = await res.json();
+  renderTable();
+  await renderDetail();
+  updateCounts();
+}
+
+function renderTableHead(){
+  let cols = [];
+
+  if(state.currentFilter === 'Fiche de caisse'){
+    cols = ['ID','N° dossier','N° caisse','Chargé projet','Statut'];
+  } else if(state.currentFilter === 'Demande de devis'){
+    cols = ['ID','Client','Projet','Date rendu','Statut'];
+  } else if(state.currentFilter === 'Demande Aller voir'){
+    cols = ['ID','Dossier / Client','Lieu RDV','Date / heure RDV','Statut'];
+  } else {
+    cols = ['ID','Dossier / Client','Chargé projet','Date création','Statut'];
+  }
+
+  els.tableHead.innerHTML = cols.map(c => `<div>${escapeHtml(c)}</div>`).join('');
+}
+
+function renderTable(){
+  renderTableHead();
+  const rows=filteredTickets();
+  els.ticketTableBody.innerHTML='';
+  if(!rows.length){els.ticketTableBody.innerHTML='<div class="empty">Aucun ticket trouvé.</div>';return;}
+  rows.forEach(ticket=>{
+    const level = getPriorityLevel(ticket.dateEmballage);
+    const row=document.createElement('div');
+    row.className=`ticket-row priority-${level}`;
+    if(ticket.id===state.selectedTicketId) row.classList.add('selected');
+    let rowHtml = '';
+
+    if(state.currentFilter === 'Fiche de caisse'){
+      rowHtml = `
+        <div><strong>${moduleIcon(ticket.module)} ${escapeHtml(ticket.id)}</strong></div>
+        <div>${escapeHtml(ticket.dossier||'-')}</div>
+        <div>${escapeHtml(ticket.ref||'-')}</div>
+        <div>${escapeHtml(ticket.chargeProjet||'-')}</div>
+        <div><span class="badge ${badgeClass(ticket.status||'Demande créée')}">${escapeHtml(ticket.status||'Demande créée')}</span></div>
+      `;
+    } else if(state.currentFilter === 'Demande de devis'){
+      rowHtml = `
+        <div><strong>${moduleIcon(ticket.module)} ${escapeHtml(ticket.id)}</strong></div>
+        <div>${escapeHtml(ticket.dossier||'-')}</div>
+        <div>${escapeHtml(ticket.expo||ticket.objet||'-')}</div>
+        <div>${escapeHtml(formatDateSimpleFR(ticket.dateEmballage))}</div>
+        <div><span class="badge ${badgeClass(ticket.status||'Demande créée')}">${escapeHtml(ticket.status||'Demande créée')}</span></div>
+      `;
+    } else if(state.currentFilter === 'Demande Aller voir'){
+      rowHtml = `
+        <div><strong>${moduleIcon(ticket.module)} ${escapeHtml(ticket.id)}</strong></div>
+        <div>${escapeHtml(ticket.dossier||'-')}</div>
+        <div>${escapeHtml(ticket.lieuRdv||'-')}</div>
+        <div>${escapeHtml(formatDateSimpleFR(ticket.dateRdv) + ' ' + (ticket.heureRdv||''))}</div>
+        <div><span class="badge ${badgeClass(ticket.status||'Demande créée')}">${escapeHtml(ticket.status||'Demande créée')}</span></div>
+      `;
+    } else {
+      rowHtml = `
+        <div><strong>${moduleIcon(ticket.module)} ${escapeHtml(ticket.id)}</strong><div class="small">${escapeHtml(ticket.module)}</div></div>
+        <div>${escapeHtml(ticket.dossier||'-')}</div>
+        <div>${escapeHtml(ticket.chargeProjet||'-')}</div>
+        <div>${escapeHtml(ticket.createdAt ? new Date(ticket.createdAt).toLocaleDateString('fr-FR') : '-')}</div>
+        <div><span class="badge ${badgeClass(ticket.status||'Demande créée')}">${escapeHtml(ticket.status||'Demande créée')}</span></div>
+      `;
+    }
+
+    row.innerHTML = rowHtml;
+    row.addEventListener('click', async ()=>{state.selectedTicketId=ticket.id; state.editMode=false; renderTable(); await renderDetail();});
+    els.ticketTableBody.appendChild(row);
+  });
+}
+async function renderDetail(){
+  const ticket=state.tickets.find(t=>t.id===state.selectedTicketId);
+  if(!ticket){
+    els.detailTitle.textContent='Sélectionne un ticket';
+    els.detailStatus.textContent='Aucun';
+    els.detailStatus.className='badge status-created';
+    els.detailBadges.innerHTML='';
+    els.detailGrid.innerHTML='<div class="info"><div class="k">Info</div><div class="v">Clique sur une ligne du tableau pour voir le détail.</div></div>';
+    els.requestFiles.innerHTML='<div class="small">Aucun fichier.</div>';
+    els.managerSheetBox.innerHTML='<div class="small">Aucune feuille de caisse déposée.</div>';
+    return;
+  }
+  els.detailTitle.textContent=`${moduleIcon(ticket.module)} ${ticket.id} — ${ticket.module}`;
+  els.detailStatus.textContent=ticket.status||'Demande créée';
+  els.detailStatus.className=`badge ${badgeClass(ticket.status||'Demande créée')}`;updateStatusButtons(ticket.status||'Demande créée');
+
+  const level = getPriorityLevel(ticket.dateEmballage);
+  els.detailBadges.innerHTML = `<span class="detail-pill">Priorité : ${escapeHtml(getPriorityLabel(level))}</span><span class="detail-pill">Statut : ${escapeHtml(ticket.status||'-')}</span><span class="detail-pill">Module : ${escapeHtml(ticket.module||'-')}</span>`;
+
+  const canEdit = state.editMode;
+  const safeValue = value => escapeHtml(value || '');
+  const input = (id, value, type='text') => `<input class="input" id="${id}" type="${type}" value="${safeValue(value)}">`;
+  const textarea = (id, value) => `<textarea class="textarea" id="${id}">${safeValue(value)}</textarea>`;
+
+  const commentValue =
+    canEdit
+      ? (
+          ticket.module === 'Demande de devis' || ticket.module === 'Demande Aller voir'
+            ? `<textarea class="textarea comment-edit-large" id="edit-commentaire">${safeValue(ticket.commentaire)}</textarea>`
+            : textarea('edit-commentaire', ticket.commentaire || '')
+        )
+      : (
+          ticket.module === 'Demande de devis' || ticket.module === 'Demande Aller voir'
+            ? `<div class="comment-display">${escapeHtml(ticket.commentaire||'-')}</div>`
+            : escapeHtml(ticket.commentaire||'-')
+        );
+
+  let entries = [];
+
+  if(ticket.module === 'Fiche de caisse'){
+    entries = [
+      ['ID', escapeHtml(ticket.id || '-')],
+      ['Module', escapeHtml(ticket.module || '-')],
+      ['N° dossier', canEdit ? input('edit-dossier', ticket.dossier || '') : escapeHtml(ticket.dossier||'-')],
+      ['N° caisse / Réf.', canEdit ? input('edit-ref', ticket.ref || '') : escapeHtml(ticket.ref||'-')],
+      ['Prêteur', canEdit ? input('edit-preteur', ticket.preteur || '') : escapeHtml(ticket.preteur||'-')],
+      ['Chargé projet', canEdit ? input('edit-chargeProjet', ticket.chargeProjet || '') : escapeHtml(ticket.chargeProjet||'-')],
+      ['Titre expo', canEdit ? input('edit-expo', ticket.expo || ticket.objet || '') : escapeHtml(ticket.expo||ticket.objet||'-')],
+      ['Type de caisse', canEdit ? input('edit-typeCaisse', ticket.typeCaisse || '') : escapeHtml(ticket.typeCaisse||'-')],
+      ['Dimensions œuvre', canEdit ? input('edit-dimensions', ticket.dimensions || '') : escapeHtml(ticket.dimensions||'-')],
+      ['Date emballage', canEdit ? input('edit-dateEmballage', ticket.dateEmballage || '', 'date') : escapeHtml(formatDateSimpleFR(ticket.dateEmballage))],
+      ['Prix devis', canEdit ? input('edit-prixDevis', ticket.prixDevis || '') : escapeHtml((ticket.prixDevis && !String(ticket.prixDevis).includes('€')) ? ticket.prixDevis+' €' : ticket.prixDevis||'-')],
+      ['Commentaire', commentValue],
+      ['Date création', escapeHtml(ticket.createdAt?fmtDateFR(ticket.createdAt):'-')]
+    ];
+  } else if(ticket.module === 'Demande de devis'){
+    entries = [
+      ['ID', escapeHtml(ticket.id || '-')],
+      ['Module', escapeHtml(ticket.module || '-')],
+      ['Client', canEdit ? input('edit-dossier', ticket.dossier || '') : escapeHtml(ticket.dossier||'-')],
+      ['Chargé projet', canEdit ? input('edit-chargeProjet', ticket.chargeProjet || '') : escapeHtml(ticket.chargeProjet||'-')],
+      ['Nom du projet', canEdit ? input('edit-expo', ticket.expo || ticket.objet || '') : escapeHtml(ticket.expo||ticket.objet||'-')],
+      ['Date rendu souhaité', canEdit ? input('edit-dateEmballage', ticket.dateEmballage || '', 'date') : escapeHtml(formatDateSimpleFR(ticket.dateEmballage))],
+      ['Prix devis', canEdit ? input('edit-prixDevis', ticket.prixDevis || '') : escapeHtml((ticket.prixDevis && !String(ticket.prixDevis).includes('€')) ? ticket.prixDevis+' €' : ticket.prixDevis||'-')],
+      ['Description du besoin', commentValue],
+      ['Date création', escapeHtml(ticket.createdAt?fmtDateFR(ticket.createdAt):'-')]
+    ];
+  } else if(ticket.module === 'Demande Aller voir'){
+    entries = [
+      ['ID', escapeHtml(ticket.id || '-')],
+      ['Module', escapeHtml(ticket.module || '-')],
+      ['Dossier / Client', canEdit ? input('edit-dossier', ticket.dossier || '') : escapeHtml(ticket.dossier||'-')],
+      ['Chargé projet', canEdit ? input('edit-chargeProjet', ticket.chargeProjet || '') : escapeHtml(ticket.chargeProjet||'-')],
+      ['Nom du projet', canEdit ? input('edit-expo', ticket.expo || ticket.objet || '') : escapeHtml(ticket.expo||ticket.objet||'-')],
+      ['Lieu de RDV', canEdit ? input('edit-lieuRdv', ticket.lieuRdv || '') : escapeHtml(ticket.lieuRdv||'-')],
+      ['Date de RDV', canEdit ? input('edit-dateRdv', ticket.dateRdv || '', 'date') : escapeHtml(formatDateSimpleFR(ticket.dateRdv))],
+      ['Heure de RDV', canEdit ? input('edit-heureRdv', ticket.heureRdv || '', 'time') : escapeHtml(ticket.heureRdv||'-')],
+      ['Description / informations', commentValue],
+      ['Date création', escapeHtml(ticket.createdAt?fmtDateFR(ticket.createdAt):'-')]
+    ];
+  } else {
+    entries = [
+      ['ID', escapeHtml(ticket.id || '-')],
+      ['Module', escapeHtml(ticket.module || '-')],
+      ['N° dossier / Client', canEdit ? input('edit-dossier', ticket.dossier || '') : escapeHtml(ticket.dossier||'-')],
+      ['N° caisse / Réf.', canEdit ? input('edit-ref', ticket.ref || '') : escapeHtml(ticket.ref||'-')],
+      ['Prêteur', canEdit ? input('edit-preteur', ticket.preteur || '') : escapeHtml(ticket.preteur||'-')],
+      ['Chargé projet', canEdit ? input('edit-chargeProjet', ticket.chargeProjet || '') : escapeHtml(ticket.chargeProjet||'-')],
+      ['Titre expo / Projet', canEdit ? input('edit-expo', ticket.expo || ticket.objet || '') : escapeHtml(ticket.expo||ticket.objet||'-')],
+      ['Type de caisse', canEdit ? input('edit-typeCaisse', ticket.typeCaisse || '') : escapeHtml(ticket.typeCaisse||'-')],
+      ['Lieu de RDV', canEdit ? input('edit-lieuRdv', ticket.lieuRdv || '') : escapeHtml(ticket.lieuRdv||'-')],
+      ['Date de RDV', canEdit ? input('edit-dateRdv', ticket.dateRdv || '', 'date') : escapeHtml(formatDateSimpleFR(ticket.dateRdv))],
+      ['Heure de RDV', canEdit ? input('edit-heureRdv', ticket.heureRdv || '', 'time') : escapeHtml(ticket.heureRdv||'-')],
+      ['Délai emballage', canEdit ? input('edit-dateEmballage', ticket.dateEmballage || '', 'date') : escapeHtml(formatDateSimpleFR(ticket.dateEmballage))],
+      ['Dimensions œuvre', canEdit ? input('edit-dimensions', ticket.dimensions || '') : escapeHtml(ticket.dimensions||'-')],
+      ['Prix devis', canEdit ? input('edit-prixDevis', ticket.prixDevis || '') : escapeHtml((ticket.prixDevis && !String(ticket.prixDevis).includes('€')) ? ticket.prixDevis+' €' : ticket.prixDevis||'-')],
+      ['Commentaire', commentValue],
+      ['Date création', escapeHtml(ticket.createdAt?fmtDateFR(ticket.createdAt):'-')]
+    ];
+  }
+  els.detailGrid.innerHTML=entries.map(([k,v])=>{
+    const wide = ((k === 'Commentaire' || k === 'Description du besoin' || k === 'Description / informations') && (ticket.module === 'Demande de devis' || ticket.module === 'Demande Aller voir')) ? ' comment-wide' : '';
+    return `<div class="info${wide}"><div class="k">${escapeHtml(k)}</div><div class="v">${v}</div></div>`;
+  }).join('');
+
+  const editBtn = document.getElementById('editTicketBtn');
+  const saveBtn = document.getElementById('saveTicketBtn');
+  const cancelBtn = document.getElementById('cancelEditBtn');
+  if(editBtn && saveBtn && cancelBtn){
+    editBtn.style.display = state.editMode ? 'none' : 'inline-block';
+    saveBtn.style.display = state.editMode ? 'inline-block' : 'none';
+    cancelBtn.style.display = state.editMode ? 'inline-block' : 'none';
+  }
+
+  els.requestFiles.innerHTML='';
+  if(!(ticket.files||[]).length){
+    els.requestFiles.innerHTML='<div class="small">Aucun fichier du demandeur.</div>';
+  } else {
+    ticket.files.forEach(file=>{
+      const item=document.createElement('div');
+      item.className='file-item';
+      item.innerHTML=`<div><strong>${escapeHtml(file.name||'document')}</strong><div class="small">${file.size?Math.round(file.size/1024)+' Ko':''}</div></div>`;
+      const btn=document.createElement('button');
+      btn.className='link-btn';
+      btn.textContent='Télécharger';
+      btn.type='button';
+      btn.addEventListener('click',()=>window.open(`${window.location.origin}/api/tickets/${encodeURIComponent(ticket.id)}/download/${encodeURIComponent(file.name)}`,'_blank'));
+      item.appendChild(btn);
+      els.requestFiles.appendChild(item);
+    });
+  }
+
+  const managerSheets = (ticket.managerSheets && ticket.managerSheets.length)
+    ? ticket.managerSheets
+    : (ticket.managerSheet && ticket.managerSheet.name ? [ticket.managerSheet] : []);
+
+  if(managerSheets.length){
+    els.managerSheetBox.innerHTML='';
+    managerSheets.forEach(file=>{
+      const item=document.createElement('div');
+      item.className='file-item';
+      item.innerHTML=`<div><strong>${escapeHtml(file.name||'feuille_caisse')}</strong><div class="small">${file.size?Math.round(file.size/1024)+' Ko':''}</div></div>`;
+      const btn=document.createElement('button');
+      btn.className='link-btn';
+      btn.textContent='Télécharger';
+      btn.type='button';
+      btn.addEventListener('click',()=>window.open(`${window.location.origin}/api/tickets/${encodeURIComponent(ticket.id)}/download-sheet/${encodeURIComponent(file.name)}`,'_blank'));
+      item.appendChild(btn);
+      els.managerSheetBox.appendChild(item);
+    });
+  } else {
+    els.managerSheetBox.innerHTML='<div class="small">Aucune feuille de caisse déposée.</div>';
+  }
+}
+function updateCounts(){
+
+  let filtered = state.tickets;
+
+  if(state.currentFilter !== 'all'){
+    const normalize = s => String(s || '')
+      .toLowerCase()
+      .replace(/demandes/g,'demande')
+      .trim();
+
+    filtered = filtered.filter(
+      t => normalize(t.module) === normalize(state.currentFilter)
+    );
+  }
+
+  const active = filtered.filter(t => t.status !== 'Terminé');
+
+  els.countCreated.textContent = active.length;
+
+  els.countProgress.textContent =
+    filtered.filter(t => t.status === 'En cours').length;
+
+  els.countNew.textContent =
+    filtered.filter(t => t.status === 'Demande créée').length;
+
+  els.countDone.textContent =
+    filtered.filter(t => t.status === 'Terminé').length;
+}
+async function updateSelectedTicketStatus(status){
+  const ticket=state.tickets.find(t=>t.id===state.selectedTicketId);
+  if(!ticket){showNotice('Sélectionne un ticket.');return;}
+  const res = await fetch(`/api/tickets/${encodeURIComponent(ticket.id)}/status`, {
+    method:'PATCH',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({status})
+  });
+  const data = await res.json();
+  if(!res.ok) return showNotice(data.error || 'Erreur mise à jour');
+  await refreshTickets();
+  showNotice('Ticket mis à jour');
+}
+async function uploadManagerFiles(files){
+  const ticket=state.tickets.find(t=>t.id===state.selectedTicketId);
+  if(!ticket){showNotice('Sélectionne un ticket.');return;}
+  const validFiles = Array.from(files || []).filter(f => f && f.name);
+  if(!validFiles.length) return;
+
+  const fd = new FormData();
+  validFiles.forEach(file => fd.append('files', file));
+
+  const res = await fetch(`/api/tickets/${encodeURIComponent(ticket.id)}/manager-sheet`, {method:'POST', body: fd});
+  const data = await res.json();
+  if(!res.ok) return showNotice(data.error || 'Erreur dépôt');
+  await refreshTickets();
+  showNotice(validFiles.length > 1 ? 'Fichiers déposés' : 'Feuille de caisse déposée');
+}
+
+
+
+function startEditTicket(){
+  const ticket=state.tickets.find(t=>t.id===state.selectedTicketId);
+  if(!ticket){showNotice('Sélectionne un ticket.');return;}
+  state.editMode = true;
+  renderDetail();
+}
+
+function cancelEditTicket(){
+  state.editMode = false;
+  renderDetail();
+}
+
+async function saveEditedTicket(){
+  const ticket=state.tickets.find(t=>t.id===state.selectedTicketId);
+  if(!ticket){showNotice('Sélectionne un ticket.');return;}
+
+  const getValue = id => {
+    const el = document.getElementById(id);
+    return el ? el.value.trim() : '';
+  };
+
+  const payload = {
+    dossier: getValue('edit-dossier'),
+    ref: getValue('edit-ref'),
+    preteur: getValue('edit-preteur'),
+    chargeProjet: getValue('edit-chargeProjet'),
+    expo: getValue('edit-expo'),
+    objet: getValue('edit-expo'),
+    typeCaisse: getValue('edit-typeCaisse'),
+    lieuRdv: getValue('edit-lieuRdv'),
+    dateRdv: getValue('edit-dateRdv'),
+    heureRdv: getValue('edit-heureRdv'),
+    dateEmballage: getValue('edit-dateEmballage'),
+    dimensions: getValue('edit-dimensions'),
+    prixDevis: getValue('edit-prixDevis'),
+    commentaire: getValue('edit-commentaire')
+  };
+
+  const res = await fetch(`/api/tickets/${encodeURIComponent(ticket.id)}`, {
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+
+  const data = await res.json();
+  if(!res.ok){
+    showNotice(data.error || 'Erreur modification ticket');
+    return;
+  }
+
+  state.editMode = false;
+  await refreshTickets();
+  showNotice('Ticket modifié');
+}
+
+async function validateAllerVoir(){
+  const ticket=state.tickets.find(t=>t.id===state.selectedTicketId);
+  if(!ticket){showNotice('Sélectionne un ticket.');return;}
+  if(ticket.module !== 'Demande Aller voir'){showNotice('Ce bouton est réservé aux demandes Aller voir.');return;}
+
+  try{
+    const res = await fetch(`/api/tickets/${encodeURIComponent(ticket.id)}/validate-aller-voir`, {method:'POST'});
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok){
+      showNotice(data.error || 'Erreur validation Aller voir');
+      return;
+    }
+
+    const calendarRes = await fetch(`/api/tickets/${encodeURIComponent(ticket.id)}/calendar.ics`);
+    if(!calendarRes.ok){
+      const err = await calendarRes.json().catch(()=>({}));
+      showNotice(err.error || 'Erreur création calendrier');
+      return;
+    }
+
+    const blob = await calendarRes.blob();
+    const url = window.URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${ticket.id}_aller_voir.ics`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    setTimeout(()=>window.URL.revokeObjectURL(url), 1000);
+
+    await refreshTickets();
+    showNotice('Demande validée et fichier Outlook téléchargé');
+  }catch(e){
+    console.error(e);
+    showNotice('Erreur calendrier : ' + (e.message || e));
+  }
+}
+
+function setupManagerDrop(){
+  const drop=document.getElementById('managerDrop'), inner=document.getElementById('managerDropInner');
+  inner.addEventListener('click',()=>els.managerFileInput.click());
+  els.managerFileInput.addEventListener('change', async e => {
+    await uploadManagerFiles(e.target.files || []);
+    els.managerFileInput.value = '';
+  });
+  ['dragenter','dragover'].forEach(evt=>drop.addEventListener(evt,e=>{e.preventDefault();drop.classList.add('dragover');}));
+  ['dragleave','dragend'].forEach(evt=>drop.addEventListener(evt,e=>{e.preventDefault();drop.classList.remove('dragover');}));
+  drop.addEventListener('drop', async e=>{
+    e.preventDefault(); drop.classList.remove('dragover');
+    await uploadManagerFiles(e.dataTransfer.files || []);
+  });
+}
+
+document.getElementById('refreshBtn').addEventListener('click',async()=>{await refreshTickets();showNotice('Liste rechargée');});
+document.getElementById('openDemandeur').addEventListener('click',()=>window.open('/demandeur','_blank'));
+document.getElementById('exportExcel').addEventListener('click',()=>window.open('/api/export/excel','_blank'));
+els.searchInput.addEventListener('input',e=>{state.searchTerm=e.target.value;renderTable();});
+els.pillBtns.forEach(btn=>btn.addEventListener('click',()=>{
+  els.pillBtns.forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  state.currentFilter=btn.dataset.filter;
+  renderTable();
+  updateCounts();
+}));
+els.statusPillBtns.forEach(btn=>btn.addEventListener('click',()=>{
+  els.statusPillBtns.forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  state.currentStatusFilter=btn.dataset.statusFilter;
+  renderTable();
+}));
+document.getElementById('statusProgress').addEventListener('click',()=>updateSelectedTicketStatus('En cours'));
+document.getElementById('statusDone').addEventListener('click',()=>updateSelectedTicketStatus('Terminé'));
+document.getElementById('statusCancel').addEventListener('click',()=>updateSelectedTicketStatus('Annulé'));
+document.getElementById('validateAllerVoirBtn').addEventListener('click', validateAllerVoir);
+document.getElementById('editTicketBtn').addEventListener('click', startEditTicket);
+document.getElementById('saveTicketBtn').addEventListener('click', saveEditedTicket);
+document.getElementById('cancelEditBtn').addEventListener('click', cancelEditTicket);
+
+
+document.getElementById('exportPdfBtn').addEventListener('click', ()=>{
+  const ticket=state.tickets.find(t=>t.id===state.selectedTicketId);
+  if(!ticket){showNotice('Sélectionne un ticket.');return;}
+  window.open(`${window.location.origin}/api/tickets/${encodeURIComponent(ticket.id)}/export-pdf`,'_blank');
+});
+
+setupManagerDrop();
+loadConfigStatus();
+refreshTickets();
+setInterval(refreshTickets, 10000);
+</script>
+
+</body>
+</html>

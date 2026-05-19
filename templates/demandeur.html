@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ESI Tickets - Demandeur local avec suivi</title>
+  <style>
+    :root{--bg:#f1f5f9;--panel:#fff;--text:#1e293b;--muted:#64748b;--line:#e2e8f0;--blue:#0ea5e9;--blue-dark:#0284c7;--success-bg:#dcfce7;--success:#15803d;--amber-bg:#fef3c7;--amber:#b45309;--sky-bg:#e0f2fe;--sky:#0369a1;--red-bg:#fee2e2;--red:#b91c1c}
+    *{box-sizing:border-box} body{margin:0;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(180deg,#e0f2fe 0%, #f1f5f9 220px);color:var(--text)}
+    .wrap{max-width:1400px;margin:0 auto;padding:32px 18px 60px}
+    .hero{background:#fff;border:1px solid var(--line);border-radius:30px;box-shadow:0 8px 30px rgba(15,23,42,.06);overflow:hidden}
+    .hero-top{display:flex;align-items:center;gap:16px;padding:22px 24px;border-bottom:1px solid var(--line)} .logo{width:98px;height:54px;flex:0 0 auto}
+    .eyebrow{color:var(--blue-dark);font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase} h1,h2,h3,p{margin:0} h1{font-size:34px}
+    .sub{margin-top:8px;color:var(--muted);font-size:15px}.content{padding:24px;display:grid;gap:22px}.layout{display:grid;grid-template-columns:1.05fr .95fr;gap:22px}
+    .card{background:#fff;border:1px solid var(--line);border-radius:26px;padding:22px}
+    .section-title{color:var(--blue-dark);font-size:14px;font-weight:700;margin-bottom:14px}.tabs{display:flex;gap:10px;flex-wrap:wrap}
+    .tab{border:1px solid var(--line);background:#fff;border-radius:16px;padding:12px 16px;font-weight:700;font-size:14px;cursor:pointer}
+    .tab.active{background:var(--blue);border-color:var(--blue);color:#fff}.grid{display:grid;gap:14px;grid-template-columns:1fr 1fr}.grid.three{grid-template-columns:repeat(3,1fr)}
+    .field{display:grid;gap:8px}.field label{font-size:14px;font-weight:600;color:#475569}.input,.textarea,.search{width:100%;border:1px solid var(--line);background:#f8fafc;border-radius:16px;padding:13px 14px;font-size:14px;color:var(--text)}
+    .textarea{min-height:92px;resize:vertical}.choice-row{display:flex;gap:10px;flex-wrap:wrap}.choice{border:1px solid var(--line);background:#fff;border-radius:16px;padding:12px 16px;font-weight:700;cursor:pointer}
+    .choice.active{background:var(--blue);border-color:var(--blue);color:#fff}.drop{border:2px dashed #7dd3fc;background:#f0f9ff;border-radius:24px;padding:20px;display:grid;gap:12px}.drop.dragover{background:#e0f2fe;border-color:var(--blue)}
+    .drop-inner{border:2px dashed #bae6fd;background:#fff;border-radius:20px;padding:28px 18px;text-align:center;cursor:pointer}.files{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+    .chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:#f8fafc;border-radius:999px;padding:8px 12px;font-size:13px}
+    .chip button{border:none;background:none;color:#b91c1c;font-weight:700;cursor:pointer}.actions{display:flex;justify-content:flex-end;gap:12px;flex-wrap:wrap}
+    .btn{border:none;border-radius:16px;padding:13px 18px;font-size:14px;font-weight:700;cursor:pointer}.btn.primary{background:var(--blue);color:#fff}.btn.secondary{background:#fff;border:1px solid var(--line);color:var(--text)}
+    .hidden{display:none !important}.success{display:none;border:1px solid #bbf7d0;background:var(--success-bg);color:var(--success);border-radius:18px;padding:14px 16px;font-weight:700}.success.show{display:block}
+    .small{font-size:12px;color:var(--muted)} .notice{position:fixed;right:18px;bottom:18px;background:#0f172a;color:#fff;padding:14px 16px;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.2);opacity:0;transform:translateY(10px);transition:.2s;pointer-events:none;max-width:360px}
+    .notice.show{opacity:1;transform:translateY(0)} .top-actions{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap} .folder-state{font-size:12px;color:var(--muted);margin-top:8px}
+    .ticket-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-height:760px;overflow:auto}
+    .ticket-item{border:1px solid var(--line);background:#f8fafc;border-radius:16px;padding:10px;display:grid;gap:6px}
+    .ticket-item:hover{background:#f0f9ff;border-color:#bae6fd}
+    .done-title{font-size:15px;font-weight:800;color:#0f172a;line-height:1.15}
+    .done-line{font-size:12px;color:#475569;line-height:1.25}
+    .done-line strong{color:#0f172a}
+    .done-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+    @media (max-width:720px){.ticket-list{grid-template-columns:1fr}}
+    .badge{display:inline-block;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:700}
+    .status-created{background:var(--sky-bg);color:var(--sky)} .status-progress{background:var(--amber-bg);color:var(--amber)} .status-done{background:var(--success-bg);color:var(--success)} .status-cancel{background:var(--red-bg);color:var(--red)}
+    .row{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+    .file-btn{border:none;background:#e0f2fe;color:#0369a1;padding:8px 12px;border-radius:12px;font-weight:700;cursor:pointer}
+    .empty{padding:16px;border:1px dashed var(--line);border-radius:16px;color:var(--muted);background:#f8fafc}
+    @media (max-width:1100px){.layout{grid-template-columns:1fr}}
+    @media (max-width:720px){h1{font-size:28px}.grid,.grid.three{grid-template-columns:1fr}.hero-top,.content,.card{padding:18px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <div class="hero-top">
+        <svg class="logo" viewBox="0 0 180 110" aria-hidden="true">
+          <path d="M18 60C28 20 65 6 112 12l-8-8h42L125 24l7-7C79 10 37 18 18 60Z" fill="#1493df" />
+          <path d="M162 50c-10 40-47 54-94 48l8 8H34l21-20-7 7c53 7 95-1 114-43Z" fill="#1493df" />
+          <text x="52" y="68" font-size="56" font-weight="900" fill="#07142d" font-family="Arial, sans-serif">esi</text>
+        </svg>
+        <div>
+          <div class="eyebrow">ESI Tickets</div>
+          <h1>DEMANDE DE TICKETS</h1>
+          
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="card top-actions">
+          <div>
+            <div class="section-title" style="margin-bottom:6px">Type de ticket</div>
+            <div class="tabs">
+              <button class="tab active" id="tab-caisse" type="button">Fiche de caisse</button>
+              <button class="tab" id="tab-devis" type="button">Demande de devis</button>
+              <button class="tab" id="tab-aller-voir" type="button">Demande Aller voir</button>
+            </div>
+            <div class="folder-state" id="folderState">Dossier de sauvegarde automatique : chargement...</div>
+          </div>
+          <div class="actions" style="justify-content:flex-end">
+            <button class="btn secondary" id="openManager" type="button">Ouvrir le portail gestionnaire</button>
+  <button class="btn secondary" id="restartApp" type="button">Relancer l'appli</button>
+          </div>
+        </div>
+
+        <div class="success" id="successBox">Votre demande a bien été envoyée.</div>
+
+        <div class="layout">
+          <div>
+            <form id="form-caisse" class="card">
+              <div class="section-title">Formulaire fiche de caisse</div>
+              <div class="grid">
+                <div class="field"><label>N° dossier</label><input class="input" id="caisse-dossier" /></div>
+                <div class="field"><label>N° caisse</label><input class="input" id="caisse-numero" /></div>
+                <div class="field"><label>Prêteur</label><input class="input" id="caisse-preteur" /></div>
+                <div class="field"><label>Titre de l'expo</label><input class="input" id="caisse-expo" /></div>
+<div class="field"><label>Chargé de projet</label><input class="input" id="caisse-charge-projet" /></div>
+                <div class="field"><label>Date emballage</label><input class="input" id="caisse-date-emballage" type="date" /></div>
+                <div class="field"><label>Prix devis</label><input class="input" id="caisse-prix-devis" placeholder="ex. 1250 €" /></div>
+                <div class="field" style="grid-column:1 / -1;"><label>Type de caisse</label><input class="input" id="caisse-type" /></div>
+              </div>
+              <div style="height:14px"></div>
+              <div class="grid three">
+                <div class="field"><label>Longueur</label><input class="input" id="caisse-longueur" /></div>
+                <div class="field"><label>Largeur</label><input class="input" id="caisse-largeur" /></div>
+                <div class="field"><label>Hauteur</label><input class="input" id="caisse-hauteur" /></div>
+              </div>
+              <div style="height:14px"></div>
+<div style="height:14px"></div>
+              <div class="drop" id="dropCaisse">
+                <div class="section-title" style="margin-bottom:0">Documents joints</div>
+                <div class="drop-inner" id="dropInnerCaisse">
+                  <div style="font-size:18px;font-weight:700;">Glisse des fichiers ici</div>
+                  <div class="sub">ou clique pour les sélectionner depuis ton ordinateur</div>
+                  <input type="file" id="fileInputCaisse" class="hidden" multiple />
+                  <div class="actions" style="justify-content:center;margin-top:14px">
+                    <button class="btn secondary" id="chooseCaisseFiles" type="button">Choisir des fichiers</button>
+                  </div>
+                  <div class="files" id="filesCaisse" style="margin-top:18px"></div>
+                </div>
+              </div>
+              <div style="height:14px"></div>
+              <div class="field"><label>Commentaire facultatif</label><textarea class="textarea" id="caisse-commentaire"></textarea></div>
+              <div style="height:18px"></div>
+              <div class="actions"><button class="btn primary" id="sendCaisse" type="button">Envoyer la demande</button></div>
+            </form>
+
+            <form id="form-devis" class="card hidden">
+              <div class="section-title">Formulaire demande de devis</div>
+              <div class="grid">
+                <div class="field"><label>Client</label><input class="input" id="devis-client" /></div>
+                <div class="field"><label>Chargé de projet</label><input class="input" id="devis-charge-projet" /></div>
+                <div class="field"><label>Nom du projet</label><input class="input" id="devis-projet" /></div>
+                <div class="field"><label>Date de rendu souhaité</label><input class="input" id="devis-date-rendu" type="date" /></div>
+              </div>
+              <div style="height:14px"></div>
+              <div class="field"><label>Description du besoin</label><textarea class="textarea" id="devis-description"></textarea></div>
+              <div style="height:14px"></div>
+              <div class="drop" id="dropDevis">
+                <div class="section-title" style="margin-bottom:0">Documents joints</div>
+                <div class="drop-inner" id="dropInnerDevis">
+                  <div style="font-size:18px;font-weight:700;">Glisse des fichiers ici</div>
+                  <div class="sub">ou clique pour les sélectionner</div>
+                  <input type="file" id="fileInputDevis" class="hidden" multiple />
+                  <div class="actions" style="justify-content:center;margin-top:14px">
+                    <button class="btn secondary" id="chooseDevisFiles" type="button">Choisir des fichiers</button>
+                  </div>
+                  <div class="files" id="filesDevis" style="margin-top:18px"></div>
+                </div>
+              </div>
+              <div style="height:18px"></div>
+              <div class="actions"><button class="btn primary" id="sendDevis" type="button">Envoyer la demande</button></div>
+            </form>
+
+            <form id="form-aller-voir" class="card hidden">
+              <div class="section-title">Formulaire demande Aller voir</div>
+              <div class="grid">
+                <div class="field"><label>N° dossier / Client</label><input class="input" id="aller-client" /></div>
+                <div class="field"><label>Chargé de projet</label><input class="input" id="aller-charge-projet" /></div>
+                <div class="field"><label>Nom du projet</label><input class="input" id="aller-projet" /></div>
+                <div class="field"><label>Lieu de RDV (nom + adresse complète)</label><input class="input" id="aller-lieu-rdv" /></div>
+                <div class="field"><label>Contact (nom + téléphone)</label><input class="input" id="aller-contact-rdv" /></div>
+                <div class="field"><label>Date du RDV</label><input class="input" id="aller-date-rdv" type="date" /></div>
+                <div class="field"><label>Heure du RDV</label><input class="input" id="aller-heure-rdv" type="time" /></div>
+              </div>
+              <div style="height:14px"></div>
+              <div class="field"><label>Description du besoin</label><textarea class="textarea" id="aller-description"></textarea></div>
+              <div style="height:14px"></div>
+              <div class="drop" id="dropAllerVoir">
+                <div class="section-title" style="margin-bottom:0">Documents joints</div>
+                <div class="drop-inner" id="dropInnerAllerVoir">
+                  <div style="font-size:18px;font-weight:700;">Glisse des fichiers ici</div>
+                  <div class="sub">ou clique pour les sélectionner</div>
+                  <input type="file" id="fileInputAllerVoir" class="hidden" multiple />
+                  <div class="actions" style="justify-content:center;margin-top:14px">
+                    <button class="btn secondary" id="chooseAllerVoirFiles" type="button">Choisir des fichiers</button>
+                  </div>
+                  <div class="files" id="filesAllerVoir" style="margin-top:18px"></div>
+                </div>
+              </div>
+              <div style="height:18px"></div>
+              <div class="actions"><button class="btn primary" id="sendAllerVoir" type="button">Envoyer la demande</button></div>
+            </form>
+          </div>
+
+          <div class="card">
+            <div class="row">
+              <div>
+                <div class="section-title" style="margin-bottom:6px">Tickets terminés</div>
+                <div class="small">Les tickets passés en terminé par le gestionnaire apparaissent ici avec leur feuille de caisse téléchargeable.</div>
+              </div>
+              <input class="search" id="doneSearch" placeholder="Rechercher..." style="max-width:220px;margin-right:8px"><button class="btn secondary" id="refreshDone" type="button">Rafraîchir</button>
+            </div>
+            <div style="height:16px"></div>
+            <div class="ticket-list" id="doneList"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="notice" id="notice"></div>
+
+  
+  
+<script>
+const state = {
+  currentModule:'caisse',
+  filesCaisse:[],
+  filesDevis:[],
+  filesAllerVoir:[],
+  doneSearch:''
+};
+
+const els = {
+  tabCaisse: document.getElementById('tab-caisse'),
+  tabDevis: document.getElementById('tab-devis'),
+  tabAllerVoir: document.getElementById('tab-aller-voir'),
+  formCaisse: document.getElementById('form-caisse'),
+  formDevis: document.getElementById('form-devis'),
+  formAllerVoir: document.getElementById('form-aller-voir'),
+  filesCaisse: document.getElementById('filesCaisse'),
+  filesDevis: document.getElementById('filesDevis'),
+  filesAllerVoir: document.getElementById('filesAllerVoir'),
+  fileInputCaisse: document.getElementById('fileInputCaisse'),
+  fileInputDevis: document.getElementById('fileInputDevis'),
+  fileInputAllerVoir: document.getElementById('fileInputAllerVoir'),
+  notice: document.getElementById('notice'),
+  successBox: document.getElementById('successBox'),
+  doneList: document.getElementById('doneList'),
+  folderState: document.getElementById('folderState')
+};
+
+function showNotice(message){
+  els.notice.textContent = message;
+  els.notice.classList.add('show');
+  clearTimeout(showNotice.timer);
+  showNotice.timer = setTimeout(()=>els.notice.classList.remove('show'), 2600);
+}
+function showSuccess(message){
+  els.successBox.textContent = message;
+  els.successBox.classList.add('show');
+  clearTimeout(showSuccess.timer);
+  showSuccess.timer = setTimeout(()=>els.successBox.classList.remove('show'), 4200);
+}
+function activateModule(module){
+  state.currentModule = module;
+  const isCaisse = module === 'caisse';
+  const isDevis = module === 'devis';
+  const isAllerVoir = module === 'aller-voir';
+  els.tabCaisse.classList.toggle('active', isCaisse);
+  els.tabDevis.classList.toggle('active', isDevis);
+  els.tabAllerVoir.classList.toggle('active', isAllerVoir);
+  els.formCaisse.classList.toggle('hidden', !isCaisse);
+  els.formDevis.classList.toggle('hidden', !isDevis);
+  els.formAllerVoir.classList.toggle('hidden', !isAllerVoir);
+  els.successBox.classList.remove('show');
+}
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function renderFiles(container, files){
+  container.innerHTML = '';
+  if(!files.length){
+    container.innerHTML = '<div class="small">Aucun fichier ajouté.</div>';
+    return;
+  }
+  files.forEach((file,index)=>{
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.innerHTML = `${escapeHtml(file.name)} <button type="button">×</button>`;
+    chip.querySelector('button').addEventListener('click', ()=>{
+      files.splice(index,1);
+      renderAllFiles();
+    });
+    container.appendChild(chip);
+  });
+}
+function renderAllFiles(){
+  renderFiles(els.filesCaisse, state.filesCaisse);
+  renderFiles(els.filesDevis, state.filesDevis);
+  renderFiles(els.filesAllerVoir, state.filesAllerVoir);
+}
+function addFiles(target, fileList){
+  const files = Array.from(fileList || []).filter(file => file && file.name);
+  if(!files.length) return;
+  files.forEach(file => target.push(file));
+  renderAllFiles();
+  showNotice(`${files.length} fichier(s) ajouté(s)`);
+}
+function setupDrop(dropId, innerId, inputEl, target){
+  const drop = document.getElementById(dropId);
+  const inner = document.getElementById(innerId);
+
+  inner.addEventListener('click', (e)=>{
+    if(e.target && e.target.tagName === 'BUTTON') return;
+    inputEl.click();
+  });
+
+  inputEl.addEventListener('change', e=>{
+    addFiles(target, e.target.files);
+    inputEl.value = '';
+  });
+
+  ['dragenter','dragover'].forEach(evt=>drop.addEventListener(evt, e=>{
+    e.preventDefault();
+    drop.classList.add('dragover');
+  }));
+
+  ['dragleave','dragend'].forEach(evt=>drop.addEventListener(evt, e=>{
+    e.preventDefault();
+    drop.classList.remove('dragover');
+  }));
+
+  drop.addEventListener('drop', e=>{
+    e.preventDefault();
+    drop.classList.remove('dragover');
+    addFiles(target, e.dataTransfer.files);
+  });
+}
+
+async function loadConfigStatus(){
+  try{
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    els.folderState.textContent = data.shared_path
+      ? `Dossier de sauvegarde automatique : ${data.shared_path}`
+      : 'Dossier de sauvegarde automatique non disponible';
+  }catch(e){
+    els.folderState.textContent = 'Dossier de sauvegarde automatique non disponible';
+  }
+}
+
+async function readTicketsFromFolder(){
+  const res = await fetch('/api/tickets');
+  if(!res.ok) throw new Error('Impossible de lire les tickets');
+  return await res.json();
+}
+
+async function sendCaisse(){
+  const dossier = document.getElementById('caisse-dossier').value.trim();
+  const numero = document.getElementById('caisse-numero').value.trim();
+  if(!dossier || !numero){
+    showNotice('Merci de renseigner au minimum le N° dossier et le N° caisse.');
+    return;
+  }
+
+  try{
+    const existingTickets = await readTicketsFromFolder();
+    const duplicate = existingTickets.find(t =>
+      t.module === 'Fiche de caisse' &&
+      String(t.dossier || '').trim() === dossier &&
+      String(t.ref || '').trim() === numero
+    );
+    if(duplicate){
+      showNotice(`La caisse ${dossier}-${numero} existe déjà. Merci de vérifier avant de créer une nouvelle demande.`);
+      return;
+    }
+
+    const fd = new FormData();
+    fd.append('module','Fiche de caisse');
+    fd.append('dossier', dossier);
+    fd.append('ref', numero);
+    fd.append('preteur', document.getElementById('caisse-preteur').value.trim());
+    fd.append('expo', document.getElementById('caisse-expo').value.trim());
+    fd.append('objet', document.getElementById('caisse-expo').value.trim());
+    fd.append('typeCaisse', document.getElementById('caisse-type').value.trim());
+    fd.append('dimensions',
+      `${document.getElementById('caisse-longueur').value.trim() || '-'} x ${document.getElementById('caisse-largeur').value.trim() || '-'} x ${document.getElementById('caisse-hauteur').value.trim() || '-'}`
+    );
+    fd.append('dateEmballage', document.getElementById('caisse-date-emballage').value || '');
+    fd.append('prixDevis', document.getElementById('caisse-prix-devis').value.trim());
+    fd.append('chargeProjet', document.getElementById('caisse-charge-projet').value.trim());
+    fd.append('commentaire', document.getElementById('caisse-commentaire').value.trim());
+    state.filesCaisse.forEach(file => fd.append('files', file));
+
+    const res = await fetch('/api/tickets', {method:'POST', body: fd});
+    const data = await res.json();
+    if(!res.ok){
+      showNotice(data.error || 'Erreur enregistrement');
+      return;
+    }
+
+    document.getElementById('form-caisse').reset();
+    state.filesCaisse.length = 0;
+    renderAllFiles();
+    await renderDoneTickets();
+    showSuccess(`Votre demande ${data.id} a bien été enregistrée.`);
+    window.scrollTo({top:0, behavior:'smooth'});
+  }catch(e){
+    showNotice(`Échec enregistrement : ${e.message || e}`);
+  }
+}
+
+async function sendDevis(){
+  const client = document.getElementById('devis-client').value.trim();
+  const chargeProjet = document.getElementById('devis-charge-projet').value.trim();
+  const projet = document.getElementById('devis-projet').value.trim();
+  if(!client || !chargeProjet || !projet){
+    showNotice('Merci de renseigner le client, le chargé de projet et le nom du projet.');
+    return;
+  }
+
+  try{
+    const fd = new FormData();
+    fd.append('module','Demande de devis');
+    fd.append('dossier', client);
+    fd.append('ref', '-');
+    fd.append('preteur','-');
+    fd.append('expo', projet);
+    fd.append('objet', projet);
+    fd.append('chargeProjet', chargeProjet);
+    fd.append('typeCaisse','-');
+    fd.append('dimensions', '-');
+    fd.append('dateEmballage', document.getElementById('devis-date-rendu').value || '-');
+    fd.append('prixDevis', '-');
+    fd.append('commentaire', document.getElementById('devis-description').value.trim());
+    state.filesDevis.forEach(file => fd.append('files', file));
+
+    const res = await fetch('/api/tickets', {method:'POST', body: fd});
+    const data = await res.json();
+    if(!res.ok){
+      showNotice(data.error || 'Erreur enregistrement');
+      return;
+    }
+
+    document.getElementById('form-devis').reset();
+    state.filesDevis.length = 0;
+    renderAllFiles();
+    await renderDoneTickets();
+    showSuccess(`Votre demande ${data.id} a bien été enregistrée.`);
+    window.scrollTo({top:0, behavior:'smooth'});
+  }catch(e){
+    showNotice(`Échec enregistrement : ${e.message || e}`);
+  }
+}
+
+
+async function sendAllerVoir(){
+  const client = document.getElementById('aller-client').value.trim();
+  const chargeProjet = document.getElementById('aller-charge-projet').value.trim();
+  const projet = document.getElementById('aller-projet').value.trim();
+  const lieuRdv = document.getElementById('aller-lieu-rdv').value.trim();
+  const contactRdv = document.getElementById('aller-contact-rdv').value.trim();
+  const dateRdv = document.getElementById('aller-date-rdv').value;
+  const heureRdv = document.getElementById('aller-heure-rdv').value;
+
+  if(!client || !chargeProjet || !projet || !lieuRdv || !dateRdv || !heureRdv){
+    showNotice('Merci de renseigner le dossier/client, le chargé de projet, le projet, le lieu, la date et l\'heure du RDV.');
+    return;
+  }
+
+  try{
+    const fd = new FormData();
+    fd.append('module','Demande Aller voir');
+    fd.append('dossier', client);
+    fd.append('ref', '-');
+    fd.append('preteur','-');
+    fd.append('expo', projet);
+    fd.append('objet', projet);
+    fd.append('chargeProjet', chargeProjet);
+    fd.append('typeCaisse','-');
+    fd.append('dimensions', '-');
+    fd.append('dateEmballage', '-');
+    fd.append('dateRdv', dateRdv);
+    fd.append('heureRdv', heureRdv);
+    fd.append('lieuRdv', lieuRdv);
+    fd.append('contactRdv', contactRdv);
+    fd.append('prixDevis', '-');
+    fd.append('commentaire', document.getElementById('aller-description').value.trim());
+    state.filesAllerVoir.forEach(file => fd.append('files', file));
+
+    const res = await fetch('/api/tickets', {method:'POST', body: fd});
+    const data = await res.json();
+    if(!res.ok){
+      showNotice(data.error || 'Erreur enregistrement');
+      return;
+    }
+
+    document.getElementById('form-aller-voir').reset();
+    state.filesAllerVoir.length = 0;
+    renderAllFiles();
+    await renderDoneTickets();
+    showSuccess(`Votre demande ${data.id} a bien été enregistrée.`);
+    window.scrollTo({top:0, behavior:'smooth'});
+  }catch(e){
+    showNotice(`Échec enregistrement : ${e.message || e}`);
+  }
+}
+
+async function renderDoneTickets(){
+  try{
+    const allTickets = await readTicketsFromFolder();
+    const expectedModule =
+      state.currentModule === 'caisse'
+        ? 'Fiche de caisse'
+        : (state.currentModule === 'devis' ? 'Demande de devis' : 'Demande Aller voir');
+
+    let done = (allTickets || []).filter(t => (t.status || '') === 'Terminé' && t.module === expectedModule);
+
+    const search = (state.doneSearch || '').toLowerCase();
+    if(search){
+      done = done.filter(t => (`${t.id || ''} ${t.dossier || ''} ${t.ref || ''} ${t.expo || ''} ${t.objet || ''} ${t.chargeProjet || ''}`).toLowerCase().includes(search));
+    }
+
+    done.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+
+    els.doneList.innerHTML = '';
+    if(!done.length){
+      els.doneList.innerHTML = `<div class="empty">Aucun ticket terminé pour ce type de demande pour le moment.</div>`;
+      return;
+    }
+
+    for(const ticket of done){
+      const item = document.createElement('div');
+      item.className = 'ticket-item';
+
+      const fiche = ticket.fiche || {};
+      const prixAchatRaw = fiche.prixAchat || '';
+      const prixAchat = prixAchatRaw
+        ? (String(prixAchatRaw).includes('€') ? String(prixAchatRaw) : String(prixAchatRaw) + ' €')
+        : '-';
+
+      const managerSheets = (ticket.managerSheets && ticket.managerSheets.length)
+        ? ticket.managerSheets
+        : (ticket.managerSheet && ticket.managerSheet.name ? [ticket.managerSheet] : []);
+
+      const dimensions = `${fiche.longueur || '-'} x ${fiche.largeur || '-'} x ${fiche.hauteur || '-'}`;
+      const nomCaissier = fiche.choixCaissier || '-';
+
+      item.innerHTML = `
+        <div class="done-title">${escapeHtml((ticket.dossier || '-') + ' - ' + (ticket.ref || '-'))}</div>
+        <div class="done-line">Chargé : <strong>${escapeHtml(ticket.chargeProjet || '-')}</strong></div>
+        ${ticket.module === 'Demande Aller voir'
+          ? `<div class="done-line">Lieu : <strong>${escapeHtml(ticket.lieuRdv || '-')}</strong></div><div class="done-line">RDV : <strong>${escapeHtml((ticket.dateRdv || '-') + ' ' + (ticket.heureRdv || '-'))}</strong></div>`
+          : `<div class="done-line">Dims : <strong>${escapeHtml(dimensions)}</strong></div><div class="done-line">Prix : <strong>${escapeHtml(prixAchat)}</strong></div><div class="done-line">Caissier : <strong>${escapeHtml(nomCaissier)}</strong></div>`}
+      `;
+
+      const actionRow = document.createElement('div');
+      actionRow.className = 'done-actions';
+
+      if(managerSheets.length){
+        managerSheets.forEach(file => {
+          if(!file || !file.name) return;
+          const btn = document.createElement('button');
+          btn.className = 'file-btn';
+          btn.type = 'button';
+          btn.textContent = file.name || 'Télécharger';
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            window.open(`/api/tickets/${encodeURIComponent(ticket.id)}/download-sheet/${encodeURIComponent(file.name)}`, '_blank');
+          });
+          actionRow.appendChild(btn);
+        });
+      }
+
+      if(!actionRow.children.length){
+        const span = document.createElement('div');
+        span.className = 'small';
+        span.textContent = expectedModule === 'Fiche de caisse'
+          ? 'Aucune feuille de caisse déposée.'
+          : 'Aucun fichier gestionnaire déposé.';
+        actionRow.appendChild(span);
+      }
+
+      item.appendChild(actionRow);
+      els.doneList.appendChild(item);
+    }
+  }catch(e){
+    console.error('Erreur lecture tickets terminés', e);
+    els.doneList.innerHTML = '<div class="empty">Impossible de lire les tickets terminés. Clique sur Rafraîchir ou relance l’application.</div>';
+  }
+}
+
+els.tabCaisse.addEventListener('click', ()=>{activateModule('caisse'); renderDoneTickets();});
+els.tabDevis.addEventListener('click', ()=>{activateModule('devis'); renderDoneTickets();});
+els.tabAllerVoir.addEventListener('click', ()=>{activateModule('aller-voir'); renderDoneTickets();});
+document.getElementById('chooseCaisseFiles').addEventListener('click', (e)=>{e.stopPropagation(); els.fileInputCaisse.click();});
+document.getElementById('chooseDevisFiles').addEventListener('click', (e)=>{e.stopPropagation(); els.fileInputDevis.click();});
+document.getElementById('chooseAllerVoirFiles').addEventListener('click', (e)=>{e.stopPropagation(); els.fileInputAllerVoir.click();});
+document.getElementById('sendCaisse').addEventListener('click', sendCaisse);
+document.getElementById('sendDevis').addEventListener('click', sendDevis);
+document.getElementById('sendAllerVoir').addEventListener('click', sendAllerVoir);
+document.getElementById('sendAllerVoir').addEventListener('click', sendAllerVoir);
+document.getElementById('openManager').addEventListener('click', ()=>window.open('/login','_blank'));
+document.getElementById('restartApp').addEventListener('click', () => {
+  alert("L'application va se fermer.\nRelancez-la avec votre raccourci.");
+  setTimeout(() => { fetch('/api/restart').catch(()=>{}); }, 300);
+});
+document.getElementById('refreshDone').addEventListener('click', renderDoneTickets);
+document.getElementById('doneSearch').addEventListener('input', e=>{state.doneSearch=e.target.value;renderDoneTickets();});
+setupDrop('dropCaisse','dropInnerCaisse',els.fileInputCaisse,state.filesCaisse);
+setupDrop('dropDevis','dropInnerDevis',els.fileInputDevis,state.filesDevis);
+setupDrop('dropAllerVoir','dropInnerAllerVoir',els.fileInputAllerVoir,state.filesAllerVoir);
+
+activateModule('caisse');
+renderAllFiles();
+loadConfigStatus();
+
+window.addEventListener('load', async ()=>{ try { await renderDoneTickets(); } catch(e){} });
+setInterval(async ()=>{ try { await renderDoneTickets(); } catch(e){} }, 10000);
+</script>
+
+</body>
+</html>
