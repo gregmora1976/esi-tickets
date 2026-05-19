@@ -418,24 +418,25 @@ def api_create_ticket():
         'managerSheets': []
     }
     folder = ticket_folder(ticket_id)
+
     for fs in request.files.getlist('files'):
-    if not fs.filename:
-        continue
+        if not fs.filename:
+            continue
 
-    content = fs.read()
+        content = fs.read()
 
-    supabase.storage.from_("uploads").upload(
-        f"{ticket_id}/{fs.filename}",
-        content,
-        {"content-type": fs.content_type}
-    )
+        supabase.storage.from_("uploads").upload(
+            f"{ticket_id}/{fs.filename}",
+            content,
+            {"content-type": fs.content_type}
+        )
 
-    size = len(content)
+        size = len(content)
 
-    ticket['files'].append({
-        'name': fs.filename,
-        'size': size
-    })
+        ticket['files'].append({
+            'name': fs.filename,
+            'size': size
+        })
 
     save_ticket(ticket)
     return jsonify({'ok': True, 'id': ticket_id})
