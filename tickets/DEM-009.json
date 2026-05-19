@@ -1,0 +1,35 @@
+{
+  "id": "DEM-009",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-04-23T09:07:04.114853",
+  "dossier": "100709",
+  "ref": "02",
+  "preteur": "-",
+  "expo": "Wallon",
+  "objet": "Wallon",
+  "chargeProjet": "Elise K",
+  "typeCaisse": "cadre de voyage",
+  "dimensions": "- x - x -",
+  "dateEmballage": "2026-04-28",
+  "prixDevis": "185",
+  "commentaire": "",
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100709-02.xlsx",
+      "size": 52183
+    }
+  ],
+  "fiche": {
+    "longueur": "261",
+    "largeur": "17",
+    "hauteur": "212",
+    "dimensionsExt": "261 x 17 x 212",
+    "prixAchat": "115 €",
+    "typeCaisseFiche": "cadre de voyage",
+    "bilanCarbone": "",
+    "poids": "",
+    "choixCaissier": "secobois"
+  }
+}

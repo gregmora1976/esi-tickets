@@ -1,0 +1,40 @@
+{
+  "id": "DEM-014",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-04-23T16:02:18.412610",
+  "dossier": "100719",
+  "ref": "01",
+  "preteur": "Mairie Marseille",
+  "expo": "Nos jeunesse",
+  "objet": "Nos jeunesse",
+  "chargeProjet": "Alice",
+  "typeCaisse": "tableaux",
+  "dimensions": "- x - x -",
+  "dateEmballage": "2026-05-07",
+  "prixDevis": "480",
+  "commentaire": "",
+  "files": [
+    {
+      "name": "Photographie Y. Lamoulère_fiche tableau.xlsx",
+      "size": 11436
+    }
+  ],
+  "managerSheets": [
+    {
+      "name": "100719-01.xlsx",
+      "size": 50854
+    }
+  ],
+  "fiche": {
+    "longueur": "92",
+    "largeur": "22",
+    "hauteur": "91",
+    "dimensionsExt": "92 x 22 x 91",
+    "prixAchat": "170 €",
+    "typeCaisseFiche": "tableaux",
+    "bilanCarbone": "18",
+    "poids": "",
+    "choixCaissier": "secobois"
+  }
+}

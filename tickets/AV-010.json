@@ -1,0 +1,27 @@
+{
+  "id": "AV-010",
+  "module": "Demande Aller voir",
+  "status": "Demande créée",
+  "createdAt": "2026-05-18T21:27:02.861979",
+  "dossier": "100751",
+  "ref": "-",
+  "preteur": "-",
+  "expo": "Carnavalet",
+  "objet": "Carnavalet",
+  "chargeProjet": "Erwan L",
+  "typeCaisse": "-",
+  "dimensions": "-",
+  "dateEmballage": "-",
+  "prixDevis": "-",
+  "dateRdv": "2026-05-19",
+  "heureRdv": "11:00",
+  "lieuRdv": "Musee Carnavalet",
+  "commentaire": "",
+  "files": [
+    {
+      "name": "FICHE ALLER VOIR (Musée Carnavalet - Maison Laffitte).doc",
+      "size": 484864
+    }
+  ],
+  "managerSheets": []
+}

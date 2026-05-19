@@ -1,0 +1,29 @@
+{
+  "id": "DEV-001",
+  "module": "Demande Aller voir",
+  "status": "Annulé",
+  "createdAt": "2026-04-27T08:06:07.880042",
+  "updatedAt": "2026-05-11T15:12:23.205438",
+  "dossier": "100719",
+  "ref": "",
+  "preteur": "-",
+  "expo": "Nos jeunesse",
+  "objet": "Nos jeunesse",
+  "chargeProjet": "Alice S",
+  "typeCaisse": "-",
+  "dimensions": "-",
+  "dateEmballage": "-",
+  "prixDevis": "-",
+  "dateRdv": "2026-04-28",
+  "heureRdv": "09:00",
+  "lieuRdv": "CNAP rue Aubervilliers",
+  "commentaire": "100719_SCH_Exposition Nos Jeunesses_Origine\n\nAller-voir en vue de la création d’une caisse et deux MRT\nListe œuvres en pj \n\nCentre national des arts plastiques\n189, rue d’Aubervilliers \nCAP 18 – bâtiment 6 – voie D – porte 25 \n75018 PARIS \nAmélie Matray T +33(0)6 2773 4016\nStephan Raffy T +33(0)6 2773 6476\n\nPrix de vente des caisses : \n\"Fabrication d'une caisse musée249*24*172cm\"             450,00 \n\"Fabrication d'une caisse galerie 121*21*169cm\"            580,00",
+  "validatedAt": "",
+  "files": [
+    {
+      "name": "Liste oeuvres_CNAP.pdf",
+      "size": 375202
+    }
+  ],
+  "managerSheets": []
+}

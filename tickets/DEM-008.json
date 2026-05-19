@@ -1,0 +1,35 @@
+{
+  "id": "DEM-008",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-04-22T17:32:59.764793",
+  "dossier": "100709",
+  "ref": "01",
+  "preteur": "-",
+  "expo": "Wallon",
+  "objet": "Wallon",
+  "chargeProjet": "Elise K",
+  "typeCaisse": "glissieres",
+  "dimensions": "- x - x -",
+  "dateEmballage": "2026-05-05",
+  "prixDevis": "-",
+  "commentaire": "",
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100709-01.xlsx",
+      "size": 48499
+    }
+  ],
+  "fiche": {
+    "longueur": "84",
+    "largeur": "18",
+    "hauteur": "71",
+    "dimensionsExt": "84 x 18 x 71",
+    "prixAchat": "285",
+    "typeCaisseFiche": "glissieres",
+    "bilanCarbone": "",
+    "poids": "",
+    "choixCaissier": "secobois"
+  }
+}

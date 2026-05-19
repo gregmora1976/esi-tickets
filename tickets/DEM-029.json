@@ -1,0 +1,38 @@
+{
+  "id": "DEM-029",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-04-30T08:40:26.283668",
+  "dossier": "100732",
+  "ref": "32",
+  "preteur": "MAB Libourne",
+  "expo": "Amazones",
+  "objet": "Amazones",
+  "chargeProjet": "Ariane",
+  "typeCaisse": "-",
+  "dimensions": "- x - x -",
+  "dateEmballage": "-",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100732-32.xlsx",
+      "size": 50980
+    }
+  ],
+  "fiche": {
+    "longueur": "94",
+    "largeur": "28",
+    "hauteur": "1001",
+    "dimensionsExt": "94 x 28 x 1001",
+    "prixAchat": "345 €",
+    "typeCaisseFiche": "tableaux",
+    "bilanCarbone": "",
+    "poids": "",
+    "choixCaissier": "arckx"
+  }
+}

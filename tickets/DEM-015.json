@@ -1,0 +1,27 @@
+{
+  "id": "DEM-015",
+  "module": "Fiche de caisse",
+  "status": "Annulé",
+  "createdAt": "2026-04-24T13:52:51.552789",
+  "dossier": "56000",
+  "ref": "1",
+  "preteur": "MAD",
+  "expo": "ETE",
+  "objet": "ETE",
+  "chargeProjet": "CK",
+  "typeCaisse": "CAISSE MUSEE",
+  "dimensions": "200 x 100 x 50",
+  "dateEmballage": "2026-07-02",
+  "prixDevis": "450",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "HHFFHGJFHG",
+  "files": [
+    {
+      "name": "Registre de sécurité Champcueil.pdf",
+      "size": 5782142
+    }
+  ],
+  "managerSheets": []
+}

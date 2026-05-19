@@ -1,0 +1,40 @@
+{
+  "id": "DEM-050",
+  "module": "Fiche de caisse",
+  "status": "En cours",
+  "createdAt": "2026-05-18T09:06:33.855473",
+  "updatedAt": "2026-05-18T11:41:10.812183",
+  "dossier": "100867",
+  "ref": "04",
+  "preteur": "MBA ANGERS",
+  "expo": "Corsica",
+  "objet": "Corsica",
+  "chargeProjet": "Elise K",
+  "typeCaisse": "caisse objet",
+  "dimensions": "- x - x -",
+  "dateEmballage": "2026-06-15",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "validatedAt": "",
+  "fiche": {
+    "longueur": "35",
+    "largeur": "29",
+    "hauteur": "46",
+    "dimensionsExt": "35 x 29 x 46",
+    "prixAchat": "157 €",
+    "typeCaisseFiche": "objet",
+    "bilanCarbone": "",
+    "poids": "",
+    "choixCaissier": "EN ATTENTE COMMANDE"
+  },
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100867-04.xlsx",
+      "size": 50412
+    }
+  ]
+}

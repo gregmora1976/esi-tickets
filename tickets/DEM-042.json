@@ -1,0 +1,40 @@
+{
+  "id": "DEM-042",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-05-11T16:23:38.060183",
+  "updatedAt": "2026-05-11T16:24:29.268673",
+  "dossier": "100810",
+  "ref": "09",
+  "preteur": "Petit Palais",
+  "expo": "Banquets",
+  "objet": "Banquets",
+  "chargeProjet": "thelma",
+  "typeCaisse": "caisse ecrin",
+  "dimensions": "- x - x -",
+  "dateEmballage": "2026-05-25",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "validatedAt": "",
+  "fiche": {
+    "longueur": "44",
+    "largeur": "39",
+    "hauteur": "36",
+    "dimensionsExt": "44 x 39 x 36",
+    "prixAchat": "295 €",
+    "typeCaisseFiche": "caisse ecrin",
+    "bilanCarbone": "",
+    "poids": "",
+    "choixCaissier": "arckx"
+  },
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100810-09.xlsx",
+      "size": 50448
+    }
+  ]
+}

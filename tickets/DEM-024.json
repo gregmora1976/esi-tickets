@@ -1,0 +1,38 @@
+{
+  "id": "DEM-024",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-04-30T08:37:22.728339",
+  "dossier": "100732",
+  "ref": "21",
+  "preteur": "chateau de cadillac",
+  "expo": "Amazones",
+  "objet": "Amazones",
+  "chargeProjet": "Ariane",
+  "typeCaisse": "-",
+  "dimensions": "- x - x -",
+  "dateEmballage": "-",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100732-21.xlsx",
+      "size": 51021
+    }
+  ],
+  "fiche": {
+    "longueur": "129",
+    "largeur": "24",
+    "hauteur": "145",
+    "dimensionsExt": "129 x 24 x 145",
+    "prixAchat": "477 €",
+    "typeCaisseFiche": "",
+    "bilanCarbone": "36",
+    "poids": "",
+    "choixCaissier": "arckx"
+  }
+}

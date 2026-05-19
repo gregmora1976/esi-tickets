@@ -1,0 +1,38 @@
+{
+  "id": "DEM-028",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-04-30T08:39:59.001921",
+  "dossier": "100732",
+  "ref": "28",
+  "preteur": "MBA Pau",
+  "expo": "Amazones",
+  "objet": "Amazones",
+  "chargeProjet": "Ariane",
+  "typeCaisse": "-",
+  "dimensions": "- x - x -",
+  "dateEmballage": "-",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100732-28.xlsx",
+      "size": 51044
+    }
+  ],
+  "fiche": {
+    "longueur": "182",
+    "largeur": "25",
+    "hauteur": "243",
+    "dimensionsExt": "182 x 25 x 243",
+    "prixAchat": "852 €",
+    "typeCaisseFiche": "tableaux",
+    "bilanCarbone": "",
+    "poids": "",
+    "choixCaissier": "arckx"
+  }
+}

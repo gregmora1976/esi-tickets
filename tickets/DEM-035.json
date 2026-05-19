@@ -1,0 +1,38 @@
+{
+  "id": "DEM-035",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-05-05T13:41:03.211922",
+  "dossier": "100719",
+  "ref": "05",
+  "preteur": "CNAP",
+  "expo": "Nos jeunesse",
+  "objet": "Nos jeunesse",
+  "chargeProjet": "Alice S",
+  "typeCaisse": "cadre de voyage",
+  "dimensions": "- x - x -",
+  "dateEmballage": "2026-05-13",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100719-05.xlsx",
+      "size": 52131
+    }
+  ],
+  "fiche": {
+    "longueur": "242",
+    "largeur": "18",
+    "hauteur": "165",
+    "dimensionsExt": "242 x 18 x 165",
+    "prixAchat": "165 €",
+    "typeCaisseFiche": "cadre de voyage",
+    "bilanCarbone": "",
+    "poids": "",
+    "choixCaissier": "secobois"
+  }
+}

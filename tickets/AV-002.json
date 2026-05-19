@@ -1,0 +1,42 @@
+{
+  "id": "AV-002",
+  "module": "Demande Aller voir",
+  "status": "Terminé",
+  "createdAt": "2026-04-24T15:28:15.739694",
+  "updatedAt": "2026-05-11T13:35:51.473883",
+  "dossier": "100821",
+  "ref": "-",
+  "preteur": "-",
+  "expo": "aube du moyen age",
+  "objet": "aube du moyen age",
+  "chargeProjet": "Alice S",
+  "typeCaisse": "-",
+  "dimensions": "-",
+  "dateEmballage": "-",
+  "prixDevis": "-",
+  "dateRdv": "2026-04-30",
+  "heureRdv": "10:00",
+  "lieuRdv": "Chartres",
+  "commentaire": "",
+  "validatedAt": "",
+  "files": [
+    {
+      "name": "06_ESI_Offre_Note technique.pdf",
+      "size": 322586
+    },
+    {
+      "name": "05_ESI_Offre_Devis.pdf",
+      "size": 173148
+    }
+  ],
+  "managerSheets": [
+    {
+      "name": "Chartres - 20260505_134532.pdf",
+      "size": 29753858
+    },
+    {
+      "name": "chartres.xlsm",
+      "size": 4891551
+    }
+  ]
+}

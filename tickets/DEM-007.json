@@ -1,0 +1,40 @@
+{
+  "id": "DEM-007",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-04-22T17:12:58.020011",
+  "dossier": "100813",
+  "ref": "01",
+  "preteur": "Strasbourg",
+  "expo": "Drole de vol",
+  "objet": "Drole de vol",
+  "chargeProjet": "MJ",
+  "typeCaisse": "caisse glissière",
+  "dimensions": "- x - x -",
+  "dateEmballage": "2026-05-25",
+  "prixDevis": "600",
+  "commentaire": "",
+  "files": [
+    {
+      "name": "Packing liste 100813.xlsx",
+      "size": 1140715
+    }
+  ],
+  "managerSheets": [
+    {
+      "name": "100813-01.xlsx",
+      "size": 46827
+    }
+  ],
+  "fiche": {
+    "longueur": "78",
+    "largeur": "47",
+    "hauteur": "106",
+    "dimensionsExt": "78 x 47 x 106",
+    "prixAchat": "355",
+    "typeCaisseFiche": "glissieres",
+    "bilanCarbone": "25",
+    "poids": "",
+    "choixCaissier": "secobois"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "id": "AV-001",
+  "module": "Demande Aller voir",
+  "status": "Terminé",
+  "createdAt": "2026-04-23T17:54:40.025722",
+  "updatedAt": "2026-05-06T09:57:31.379961",
+  "dossier": "100810",
+  "ref": "-",
+  "preteur": "-",
+  "expo": "stayre",
+  "objet": "stayre",
+  "chargeProjet": "Thelma",
+  "typeCaisse": "-",
+  "dimensions": "-",
+  "dateEmballage": "-",
+  "prixDevis": "-",
+  "dateRdv": "2026-04-24",
+  "heureRdv": "09:00",
+  "lieuRdv": "petit palais",
+  "commentaire": "",
+  "validatedAt": "",
+  "files": [
+    {
+      "name": "AV_petit palais.doc",
+      "size": 497664
+    }
+  ],
+  "managerSheets": [
+    {
+      "name": "100732 petit palais - 20260408_114603.pdf",
+      "size": 619265
+    },
+    {
+      "name": "100732 petit palais.xlsm",
+      "size": 4892085
+    }
+  ]
+}

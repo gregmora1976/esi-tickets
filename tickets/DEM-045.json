@@ -1,0 +1,27 @@
+{
+  "id": "DEM-045",
+  "module": "Fiche de caisse",
+  "status": "Demande créée",
+  "createdAt": "2026-05-11T17:20:01.784498",
+  "dossier": "100801",
+  "ref": "01",
+  "preteur": "musee de l'homme",
+  "expo": "transport momies",
+  "objet": "transport momies",
+  "chargeProjet": "Erwan L",
+  "typeCaisse": "wrapp",
+  "dimensions": "- x - x -",
+  "dateEmballage": "-",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "files": [
+    {
+      "name": "musee de l'homme.png",
+      "size": 200145
+    }
+  ],
+  "managerSheets": []
+}

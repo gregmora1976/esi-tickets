@@ -1,0 +1,35 @@
+{
+  "id": "DEM-011",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-04-23T10:48:56.284223",
+  "dossier": "100732",
+  "ref": "03",
+  "preteur": "Orsay",
+  "expo": "Amazones",
+  "objet": "Amazones",
+  "chargeProjet": "Ariane",
+  "typeCaisse": "glissieres",
+  "dimensions": "- x - x -",
+  "dateEmballage": "2026-04-29",
+  "prixDevis": "-",
+  "commentaire": "",
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100732-03.xlsx",
+      "size": 46651
+    }
+  ],
+  "fiche": {
+    "longueur": "60",
+    "largeur": "17",
+    "hauteur": "80",
+    "dimensionsExt": "60 x 17 x 80",
+    "prixAchat": "262 €",
+    "typeCaisseFiche": "glissieres",
+    "bilanCarbone": "",
+    "poids": "",
+    "choixCaissier": "arckx"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "id": "AV-004",
+  "module": "Demande Aller voir",
+  "status": "Terminé",
+  "createdAt": "2026-04-30T08:48:37.657858",
+  "updatedAt": "2026-05-11T13:35:04.999697",
+  "dossier": "100823",
+  "ref": "-",
+  "preteur": "-",
+  "expo": "Déplacements objets Chapelle Sacré Coeur",
+  "objet": "Déplacements objets Chapelle Sacré Coeur",
+  "chargeProjet": "Erwan Laot",
+  "typeCaisse": "-",
+  "dimensions": "-",
+  "dateEmballage": "-",
+  "prixDevis": "-",
+  "dateRdv": "2026-04-30",
+  "heureRdv": "13:30",
+  "lieuRdv": "Eglise Saint Leu Saint Gilles, 92 rue Saint-Denis, 75001 Paris",
+  "commentaire": "11 objets à déplacer avant le 11 mai 2026 (date d’installation d’un échafaudage) \r\n3 lieux de repli envisagés par la paroisse (déambulatoire, Chapelle Saint-Leu, Chapelle des reliques)\r\n\r\nCi-joint : \r\n-\tListe des objets à déplacer \r\n-\tPlan de la Chapelle \r\n-\tPhotographie",
+  "validatedAt": "2026-04-30T11:13:25.204939",
+  "files": [
+    {
+      "name": "Eglise Saint-Leu Liste objets à déplacer.docx",
+      "size": 16471
+    },
+    {
+      "name": "Plan de localisation.pdf",
+      "size": 127237
+    },
+    {
+      "name": "00LGI241_1407VA.jpg",
+      "size": 379919
+    }
+  ],
+  "managerSheets": []
+}

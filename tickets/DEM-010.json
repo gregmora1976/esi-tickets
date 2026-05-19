@@ -1,0 +1,35 @@
+{
+  "id": "DEM-010",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-04-23T09:58:50.446758",
+  "dossier": "100729",
+  "ref": "02",
+  "preteur": "orangerie",
+  "expo": "LEO",
+  "objet": "LEO",
+  "chargeProjet": "Elise K",
+  "typeCaisse": "tableaux",
+  "dimensions": "- x - x -",
+  "dateEmballage": "2026-05-13",
+  "prixDevis": "-",
+  "commentaire": "",
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100729-02.xlsx",
+      "size": 50901
+    }
+  ],
+  "fiche": {
+    "longueur": "130",
+    "largeur": "29",
+    "hauteur": "184",
+    "dimensionsExt": "130 x 29 x 184",
+    "prixAchat": "660 €",
+    "typeCaisseFiche": "tableaux",
+    "bilanCarbone": "61",
+    "poids": "69",
+    "choixCaissier": "arckx"
+  }
+}

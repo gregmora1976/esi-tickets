@@ -1,0 +1,40 @@
+{
+  "id": "DEM-041",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-05-11T16:16:16.142905",
+  "updatedAt": "2026-05-11T16:25:25.885692",
+  "dossier": "100764",
+  "ref": "01",
+  "preteur": "CNAM",
+  "expo": "Toile de Jouy",
+  "objet": "Toile de Jouy",
+  "chargeProjet": "Alice S",
+  "typeCaisse": "boite carton",
+  "dimensions": "- x - x -",
+  "dateEmballage": "2026-06-04",
+  "prixDevis": "700",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "validatedAt": "",
+  "fiche": {
+    "longueur": "82",
+    "largeur": "15",
+    "hauteur": "82",
+    "dimensionsExt": "82 x 15 x 82",
+    "prixAchat": "75 €",
+    "typeCaisseFiche": "boite carton",
+    "bilanCarbone": "",
+    "poids": "",
+    "choixCaissier": "secobois"
+  },
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100764-01.xlsx",
+      "size": 50983
+    }
+  ]
+}

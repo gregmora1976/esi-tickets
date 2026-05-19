@@ -1,0 +1,30 @@
+{
+  "id": "DEM-012",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-04-23T11:18:49.444328",
+  "dossier": "100732",
+  "ref": "18",
+  "preteur": "Hermes",
+  "expo": "Amazones",
+  "objet": "Amazones",
+  "chargeProjet": "Ariane",
+  "typeCaisse": "objets à bancs",
+  "dimensions": "- x - x -",
+  "dateEmballage": "2026-04-30",
+  "prixDevis": "-",
+  "commentaire": "",
+  "files": [],
+  "managerSheets": [],
+  "fiche": {
+    "longueur": "147",
+    "largeur": "56",
+    "hauteur": "21",
+    "dimensionsExt": "147 x 56 x 21",
+    "prixAchat": "120 €",
+    "typeCaisseFiche": "wrapp",
+    "bilanCarbone": "",
+    "poids": "",
+    "choixCaissier": "arckx"
+  }
+}

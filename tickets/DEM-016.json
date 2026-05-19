@@ -1,0 +1,44 @@
+{
+  "id": "DEM-016",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-04-24T15:05:06.462629",
+  "dossier": "100694",
+  "ref": "02",
+  "preteur": "MuMA Le Havre (pompidou)",
+  "expo": "Dufy",
+  "objet": "Dufy",
+  "chargeProjet": "Erwan",
+  "typeCaisse": "tableaux",
+  "dimensions": "- x - x -",
+  "dateEmballage": "",
+  "prixDevis": "-",
+  "dateRdv": "",
+  "heureRdv": "",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "files": [
+    {
+      "name": "Fiche de dimensions Dufy - Autoportrait au chapeau mou.pdf",
+      "size": 204182
+    }
+  ],
+  "managerSheets": [
+    {
+      "name": "100694-02.xlsx",
+      "size": 50840
+    }
+  ],
+  "fiche": {
+    "longueur": "63",
+    "largeur": "23",
+    "hauteur": "69",
+    "dimensionsExt": "63 x 23 x 69",
+    "prixAchat": "228 €",
+    "typeCaisseFiche": "tableaux",
+    "bilanCarbone": "11",
+    "poids": "",
+    "choixCaissier": "arckx"
+  },
+  "updatedAt": "2026-04-24T16:32:50.982574"
+}

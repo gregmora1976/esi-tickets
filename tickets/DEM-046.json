@@ -1,0 +1,45 @@
+{
+  "id": "DEM-046",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-05-18T07:36:32.209099",
+  "updatedAt": "2026-05-18T10:54:01.175744",
+  "dossier": "100707",
+  "ref": "01",
+  "preteur": "Musee impressionnismes GIVERNY",
+  "expo": "Claude Monet",
+  "objet": "Claude Monet",
+  "chargeProjet": "Alice S",
+  "typeCaisse": "-",
+  "dimensions": "- x - x -",
+  "dateEmballage": "2026-07-02",
+  "prixDevis": "1351",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "validatedAt": "",
+  "fiche": {
+    "longueur": "146",
+    "largeur": "40",
+    "hauteur": "126",
+    "dimensionsExt": "146 x 40 x 126",
+    "prixAchat": "661 €",
+    "typeCaisseFiche": "tableaux",
+    "bilanCarbone": "51",
+    "poids": "",
+    "choixCaissier": "arckx"
+  },
+  "files": [
+    {
+      "name": "fiche caisse tableau-1.pdf",
+      "size": 44691
+    }
+  ],
+  "managerSheets": [
+    {
+      "name": "100707-01.xlsx",
+      "size": 56855
+    }
+  ]
+}

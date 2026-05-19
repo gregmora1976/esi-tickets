@@ -1,0 +1,45 @@
+{
+  "id": "DEM-049",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-05-18T09:02:39.732131",
+  "updatedAt": "2026-05-18T09:19:15.856971",
+  "dossier": "100867",
+  "ref": "02",
+  "preteur": "Chateau de Compiegne",
+  "expo": "Corsica",
+  "objet": "Corsica",
+  "chargeProjet": "Elise K",
+  "typeCaisse": "caisse tableaux ISO",
+  "dimensions": "- x - x -",
+  "dateEmballage": "2026-06-15",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "validatedAt": "",
+  "fiche": {
+    "longueur": "142",
+    "largeur": "41",
+    "hauteur": "116",
+    "dimensionsExt": "142 x 41 x 116",
+    "prixAchat": "675 €",
+    "typeCaisseFiche": "tableaux ISO",
+    "bilanCarbone": "57",
+    "poids": "",
+    "choixCaissier": "arckx"
+  },
+  "files": [
+    {
+      "name": "100867 - 02 - Compiègne.pdf",
+      "size": 331570
+    }
+  ],
+  "managerSheets": [
+    {
+      "name": "100867-02.xlsx",
+      "size": 51065
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "id": "AV-008",
+  "module": "Demande Aller voir",
+  "status": "Terminé",
+  "createdAt": "2026-05-11T15:10:01.975130",
+  "updatedAt": "2026-05-11T15:10:49.134176",
+  "dossier": "100764",
+  "ref": "-",
+  "preteur": "-",
+  "expo": "Toile de Jouy",
+  "objet": "Toile de Jouy",
+  "chargeProjet": "Alice",
+  "typeCaisse": "-",
+  "dimensions": "-",
+  "dateEmballage": "-",
+  "prixDevis": "-",
+  "dateRdv": "2026-05-05",
+  "heureRdv": "09:30",
+  "lieuRdv": "CNAM St Denis",
+  "commentaire": "",
+  "validatedAt": "",
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100764 CNAM ST DENIS.pdf",
+      "size": 2172029
+    },
+    {
+      "name": "100764 CNAM St denis.xlsm",
+      "size": 4891486
+    }
+  ]
+}

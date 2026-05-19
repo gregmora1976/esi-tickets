@@ -1,0 +1,33 @@
+{
+  "id": "DEM-019",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-04-30T08:08:02.191589",
+  "dossier": "100709",
+  "ref": "3",
+  "preteur": "-",
+  "expo": "Wallon",
+  "objet": "Wallon",
+  "chargeProjet": "Elise K",
+  "typeCaisse": "cadre de voyage",
+  "dimensions": "- x - x -",
+  "dateEmballage": "2026-05-05",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "files": [],
+  "managerSheets": [],
+  "fiche": {
+    "longueur": "231",
+    "largeur": "13",
+    "hauteur": "182",
+    "dimensionsExt": "231 x 13 x 182",
+    "prixAchat": "121 €",
+    "typeCaisseFiche": "glissieres",
+    "bilanCarbone": "",
+    "poids": "",
+    "choixCaissier": "secobois"
+  }
+}

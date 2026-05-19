@@ -1,0 +1,40 @@
+{
+  "id": "DEM-056",
+  "module": "Fiche de caisse",
+  "status": "Demande créée",
+  "createdAt": "2026-05-19T16:43:48.954067",
+  "updatedAt": "2026-05-19T16:51:53.496046",
+  "dossier": "100867",
+  "ref": "05",
+  "preteur": "Musee ceramique Sevres",
+  "expo": "Nos jeunesses",
+  "objet": "Nos jeunesses",
+  "chargeProjet": "Elise K",
+  "typeCaisse": "-",
+  "dimensions": "25.7 x 18 x 22.9",
+  "dateEmballage": "2026-05-25",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "Pour la caisse n°5 – Sèvres, la régie m’a demandé les recommandations suivantes. N’hésite pas à compléter au besoin.  \r\n\r\nBuste en biscuit de porcelaine \r\nH. 22,9 cm, L. 25,7 cm, l. 18 cm\r\nCaisse musée, découpe mousse, protection tyvek \r\n\r\nDans l’attente du prix s’il te plait. \r\n\r\nBien à toi, \r\n\r\nElise",
+  "validatedAt": "",
+  "fiche": {
+    "longueur": "47",
+    "largeur": "35",
+    "hauteur": "44",
+    "dimensionsExt": "47 x 35 x 44",
+    "prixAchat": "176 €",
+    "typeCaisseFiche": "objet",
+    "bilanCarbone": "",
+    "poids": "",
+    "choixCaissier": "EN ATTENTE COMMANDE"
+  },
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100867-05.xlsx",
+      "size": 50388
+    }
+  ]
+}

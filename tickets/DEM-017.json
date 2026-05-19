@@ -1,0 +1,35 @@
+{
+  "id": "DEM-017",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-04-27T07:56:02.061029",
+  "dossier": "100729",
+  "ref": "04",
+  "preteur": "BnF",
+  "expo": "Banquets",
+  "objet": "Banquets",
+  "chargeProjet": "Elise K",
+  "typeCaisse": "-",
+  "dimensions": "- x - x -",
+  "dateEmballage": "2026-05-12",
+  "prixDevis": "-",
+  "commentaire": "",
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100729-04.xlsx",
+      "size": 53127
+    }
+  ],
+  "fiche": {
+    "longueur": "84",
+    "largeur": "37",
+    "hauteur": "78",
+    "dimensionsExt": "84 x 37 x 78",
+    "prixAchat": "495 €",
+    "typeCaisseFiche": "Objets",
+    "bilanCarbone": "",
+    "poids": "",
+    "choixCaissier": "arckx"
+  }
+}

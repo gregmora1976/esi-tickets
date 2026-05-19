@@ -1,0 +1,38 @@
+{
+  "id": "DEM-026",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-04-30T08:38:42.493559",
+  "dossier": "100732",
+  "ref": "23",
+  "preteur": "MAD",
+  "expo": "Amazones",
+  "objet": "Amazones",
+  "chargeProjet": "Elise K",
+  "typeCaisse": "-",
+  "dimensions": "- x - x -",
+  "dateEmballage": "-",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100732-23.xlsx",
+      "size": 46923
+    }
+  ],
+  "fiche": {
+    "longueur": "123",
+    "largeur": "25",
+    "hauteur": "100",
+    "dimensionsExt": "123 x 25 x 100",
+    "prixAchat": "253 €",
+    "typeCaisseFiche": "wrapp",
+    "bilanCarbone": "",
+    "poids": "",
+    "choixCaissier": "arckx"
+  }
+}

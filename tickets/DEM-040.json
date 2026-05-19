@@ -1,0 +1,38 @@
+{
+  "id": "DEM-040",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-05-05T16:36:12.745635",
+  "dossier": "100798",
+  "ref": "04",
+  "preteur": "Drouot",
+  "expo": "-",
+  "objet": "-",
+  "chargeProjet": "Alice S",
+  "typeCaisse": "-",
+  "dimensions": "- x - x -",
+  "dateEmballage": "2026-05-13",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100798-04.xlsx",
+      "size": 50352
+    }
+  ],
+  "fiche": {
+    "longueur": "57",
+    "largeur": "51",
+    "hauteur": "67",
+    "dimensionsExt": "57 x 51 x 67",
+    "prixAchat": "182 €",
+    "typeCaisseFiche": "objet",
+    "bilanCarbone": "",
+    "poids": "",
+    "choixCaissier": "secobois"
+  }
+}

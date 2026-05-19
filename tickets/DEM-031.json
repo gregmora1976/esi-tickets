@@ -1,0 +1,29 @@
+{
+  "id": "DEM-031",
+  "module": "Fiche de caisse",
+  "status": "Annulé",
+  "createdAt": "2026-04-30T10:21:34.488187",
+  "updatedAt": "2026-05-18T09:24:11.222340",
+  "dossier": "100366A01",
+  "ref": "01",
+  "preteur": "Salgado",
+  "expo": "Rodrigo Salgado",
+  "objet": "Rodrigo Salgado",
+  "chargeProjet": "Marc J",
+  "typeCaisse": "Glissière",
+  "dimensions": "- x - x -",
+  "dateEmballage": "2026-06-06",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "validatedAt": "",
+  "files": [
+    {
+      "name": "Oeuvres Paris-conditionnement caisse.pdf",
+      "size": 2586505
+    }
+  ],
+  "managerSheets": []
+}

@@ -1,0 +1,40 @@
+{
+  "id": "DEM-048",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-05-18T07:38:56.815960",
+  "updatedAt": "2026-05-18T10:53:56.915994",
+  "dossier": "100707",
+  "ref": "02",
+  "preteur": "musee GIVERNY",
+  "expo": "claude Monet",
+  "objet": "claude Monet",
+  "chargeProjet": "Alice S",
+  "typeCaisse": "-",
+  "dimensions": "- x - x -",
+  "dateEmballage": "2026-07-02",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "validatedAt": "",
+  "fiche": {
+    "longueur": "109",
+    "largeur": "28",
+    "hauteur": "211",
+    "dimensionsExt": "109 x 28 x 211",
+    "prixAchat": "659 €",
+    "typeCaisseFiche": "objet",
+    "bilanCarbone": "",
+    "poids": "",
+    "choixCaissier": "arckx"
+  },
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100707-02.xlsx",
+      "size": 50424
+    }
+  ]
+}

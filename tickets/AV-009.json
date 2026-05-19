@@ -1,0 +1,28 @@
+{
+  "id": "AV-009",
+  "module": "Demande Aller voir",
+  "status": "En cours",
+  "createdAt": "2026-05-18T12:08:24.354621",
+  "dossier": "EN\t202600356",
+  "ref": "-",
+  "preteur": "-",
+  "expo": "MOUVEMENT D OEUVRES",
+  "objet": "MOUVEMENT D OEUVRES",
+  "chargeProjet": "ELISE NOUVELLOT",
+  "typeCaisse": "-",
+  "dimensions": "-",
+  "dateEmballage": "-",
+  "prixDevis": "-",
+  "dateRdv": "2026-05-20",
+  "heureRdv": "09:05",
+  "lieuRdv": "CHATEAU D ECOUEN",
+  "commentaire": "ALLER VOIR POUR DEVIS MOUVEMENT D OEUVRES JUILLET 2026",
+  "files": [
+    {
+      "name": "LO.xlsx",
+      "size": 13429398
+    }
+  ],
+  "managerSheets": [],
+  "validatedAt": "2026-05-18T12:55:47.382599"
+}

@@ -1,0 +1,49 @@
+{
+  "id": "AV-007",
+  "module": "Demande Aller voir",
+  "status": "En cours",
+  "createdAt": "2026-05-06T15:57:20.141195",
+  "updatedAt": "2026-05-11T13:45:21.203894",
+  "dossier": "100844",
+  "ref": "",
+  "preteur": "",
+  "expo": "Exposition \"Combattre sur tous les fronts\"",
+  "objet": "Exposition \"Combattre sur tous les fronts\"",
+  "chargeProjet": "Erwan Laot",
+  "typeCaisse": "",
+  "dimensions": "",
+  "dateEmballage": "",
+  "prixDevis": "",
+  "dateRdv": "2026-05-19",
+  "heureRdv": "10:00",
+  "lieuRdv": "Particulier 1 impasse Bosquillon 91480 Varennes-Jarcy",
+  "commentaire": "Fabrication d'une caisse standard de type musée \nCaisse avec la maquette sanglée à l'intérieur, la queue \narrière soulevée et calage au niveau des roues. Maintien de \nl'ensemble à l'intérieur de la caisse\nMaquette fragile\nFrederic Finel 0664265404",
+  "validatedAt": "2026-05-11T12:21:12.811009",
+  "files": [
+    {
+      "name": "20260416_131241.jpg",
+      "size": 3771792
+    },
+    {
+      "name": "20260416_131252.jpg",
+      "size": 3396765
+    },
+    {
+      "name": "20260416_131310.jpg",
+      "size": 3859740
+    },
+    {
+      "name": "20260416_131320.jpg",
+      "size": 4074130
+    },
+    {
+      "name": "20260416_131333.jpg",
+      "size": 3122245
+    },
+    {
+      "name": "20260416_131430.jpg",
+      "size": 2611760
+    }
+  ],
+  "managerSheets": []
+}

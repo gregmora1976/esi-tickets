@@ -1,0 +1,38 @@
+{
+  "id": "DEM-023",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-04-30T08:36:46.135698",
+  "dossier": "100732",
+  "ref": "20",
+  "preteur": "MAH la Rochelle",
+  "expo": "Amazones",
+  "objet": "Amazones",
+  "chargeProjet": "Ariane",
+  "typeCaisse": "-",
+  "dimensions": "- x - x -",
+  "dateEmballage": "-",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100732-20.xlsx",
+      "size": 50947
+    }
+  ],
+  "fiche": {
+    "longueur": "98",
+    "largeur": "35",
+    "hauteur": "86",
+    "dimensionsExt": "98 x 35 x 86",
+    "prixAchat": "452 €",
+    "typeCaisseFiche": "tableaux",
+    "bilanCarbone": "",
+    "poids": "",
+    "choixCaissier": "arckx"
+  }
+}

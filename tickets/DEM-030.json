@@ -1,0 +1,38 @@
+{
+  "id": "DEM-030",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-04-30T08:40:57.997006",
+  "dossier": "100732",
+  "ref": "36",
+  "preteur": "Musee Ecouen",
+  "expo": "Amazones",
+  "objet": "Amazones",
+  "chargeProjet": "Ariane",
+  "typeCaisse": "-",
+  "dimensions": "- x - x -",
+  "dateEmballage": "-",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100732-36.xlsx",
+      "size": 48763
+    }
+  ],
+  "fiche": {
+    "longueur": "63",
+    "largeur": "22",
+    "hauteur": "89",
+    "dimensionsExt": "63 x 22 x 89",
+    "prixAchat": "384 €",
+    "typeCaisseFiche": "objets",
+    "bilanCarbone": "",
+    "poids": "",
+    "choixCaissier": "arckx"
+  }
+}

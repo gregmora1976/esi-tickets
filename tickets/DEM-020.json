@@ -1,0 +1,38 @@
+{
+  "id": "DEM-020",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-04-30T08:12:31.906002",
+  "dossier": "100816",
+  "ref": "02",
+  "preteur": "CNAP",
+  "expo": "Obsession",
+  "objet": "Obsession",
+  "chargeProjet": "Alice S",
+  "typeCaisse": "-",
+  "dimensions": "- x - x -",
+  "dateEmballage": "2026-05-06",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100816-02.xlsx",
+      "size": 51043
+    }
+  ],
+  "fiche": {
+    "longueur": "155",
+    "largeur": "19",
+    "hauteur": "141",
+    "dimensionsExt": "155 x 19 x 141",
+    "prixAchat": "345 €",
+    "typeCaisseFiche": "tableau",
+    "bilanCarbone": "43",
+    "poids": "",
+    "choixCaissier": "secobois"
+  }
+}

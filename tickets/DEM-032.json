@@ -1,0 +1,39 @@
+{
+  "id": "DEM-032",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-05-04T17:38:08.040558",
+  "dossier": "100694",
+  "ref": "04",
+  "preteur": "Haras du Pin",
+  "expo": "Dufy",
+  "objet": "Dufy",
+  "chargeProjet": "Erwan L",
+  "typeCaisse": "tableaux musee",
+  "dimensions": "- x - x -",
+  "dateEmballage": "2026-05-08",
+  "prixDevis": "-",
+  "dateRdv": "",
+  "heureRdv": "",
+  "lieuRdv": "",
+  "commentaire": "",
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100694-04.xlsx",
+      "size": 50927
+    }
+  ],
+  "updatedAt": "2026-05-04T17:43:46.393212",
+  "fiche": {
+    "longueur": "105",
+    "largeur": "25",
+    "hauteur": "123",
+    "dimensionsExt": "105 x 25 x 123",
+    "prixAchat": "428 €",
+    "typeCaisseFiche": "tableaux musee",
+    "bilanCarbone": "",
+    "poids": "",
+    "choixCaissier": "COMMANDE EN ATTENTE"
+  }
+}

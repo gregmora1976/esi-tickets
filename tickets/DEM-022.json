@@ -1,0 +1,38 @@
+{
+  "id": "DEM-022",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-04-30T08:14:03.818207",
+  "dossier": "100816",
+  "ref": "04",
+  "preteur": "CNAP",
+  "expo": "Obsession",
+  "objet": "Obsession",
+  "chargeProjet": "Alice S",
+  "typeCaisse": "cadre de voyage",
+  "dimensions": "- x - x -",
+  "dateEmballage": "2026-05-06",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100816-04.xlsx",
+      "size": 52325
+    }
+  ],
+  "fiche": {
+    "longueur": "112",
+    "largeur": "15",
+    "hauteur": "145",
+    "dimensionsExt": "112 x 15 x 145",
+    "prixAchat": "152 €",
+    "typeCaisseFiche": "cadre de voyage",
+    "bilanCarbone": "",
+    "poids": "",
+    "choixCaissier": "secobois"
+  }
+}

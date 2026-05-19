@@ -1,0 +1,22 @@
+{
+  "id": "DEM-036",
+  "module": "Fiche de caisse",
+  "status": "Demande créée",
+  "createdAt": "2026-05-05T16:29:35.138424",
+  "dossier": "100844",
+  "ref": "100844 - 01",
+  "preteur": "Musée de l'Air et de l'Espace",
+  "expo": "\"Combattre sur tous les fronts\"",
+  "objet": "\"Combattre sur tous les fronts\"",
+  "chargeProjet": "Erwan Laot",
+  "typeCaisse": "Caisse standard de type musée",
+  "dimensions": "93 x 114 x 38",
+  "dateEmballage": "2026-10-05",
+  "prixDevis": "774",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "Typologie œuvre : maquette d'avion en métal (envergure/largeur : 114 cm)",
+  "files": [],
+  "managerSheets": []
+}

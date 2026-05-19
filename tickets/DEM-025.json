@@ -1,0 +1,38 @@
+{
+  "id": "DEM-025",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-04-30T08:38:03.410274",
+  "dossier": "100732",
+  "ref": "22",
+  "preteur": "Chateau de Sceaux",
+  "expo": "Amazones",
+  "objet": "Amazones",
+  "chargeProjet": "Ariane",
+  "typeCaisse": "-",
+  "dimensions": "- x - x -",
+  "dateEmballage": "-",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100732-22.xlsx",
+      "size": 68482
+    }
+  ],
+  "fiche": {
+    "longueur": "97",
+    "largeur": "30",
+    "hauteur": "119",
+    "dimensionsExt": "97 x 30 x 119",
+    "prixAchat": "536 €",
+    "typeCaisseFiche": "",
+    "bilanCarbone": "28",
+    "poids": "",
+    "choixCaissier": "arckx"
+  }
+}

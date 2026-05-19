@@ -1,0 +1,38 @@
+{
+  "id": "DEM-027",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-04-30T08:39:19.928344",
+  "dossier": "100732",
+  "ref": "27",
+  "preteur": "Chateau de Compiegne",
+  "expo": "Amazones",
+  "objet": "Amazones",
+  "chargeProjet": "Ariane",
+  "typeCaisse": "-",
+  "dimensions": "- x - x -",
+  "dateEmballage": "-",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100732-27.xlsx",
+      "size": 48592
+    }
+  ],
+  "fiche": {
+    "longueur": "127",
+    "largeur": "71",
+    "hauteur": "150",
+    "dimensionsExt": "127 x 71 x 150",
+    "prixAchat": "685 €",
+    "typeCaisseFiche": "objet",
+    "bilanCarbone": "",
+    "poids": "",
+    "choixCaissier": "arckx"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "id": "DEM-053",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-05-18T21:07:12.362094",
+  "updatedAt": "2026-05-18T21:18:54.595738",
+  "dossier": "100719",
+  "ref": "08",
+  "preteur": "Teo Betin",
+  "expo": "Nos jeunesses",
+  "objet": "Nos jeunesses",
+  "chargeProjet": "Alice S",
+  "typeCaisse": "-",
+  "dimensions": "- x - x -",
+  "dateEmballage": "2026-05-21",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "validatedAt": "",
+  "fiche": {
+    "longueur": "202",
+    "largeur": "25",
+    "hauteur": "67",
+    "dimensionsExt": "202 x 25 x 67",
+    "prixAchat": "349 €",
+    "typeCaisseFiche": "objet",
+    "bilanCarbone": "",
+    "poids": "",
+    "choixCaissier": "secobois"
+  },
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100719-08.xlsx",
+      "size": 50403
+    }
+  ]
+}

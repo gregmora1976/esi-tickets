@@ -1,0 +1,29 @@
+{
+  "id": "DEM-044",
+  "module": "Fiche de caisse",
+  "status": "Annulé",
+  "createdAt": "2026-05-11T17:14:36.479067",
+  "updatedAt": "2026-05-11T17:15:10.188232",
+  "dossier": "essai",
+  "ref": "03",
+  "preteur": "-",
+  "expo": "-",
+  "objet": "-",
+  "chargeProjet": "-",
+  "typeCaisse": "-",
+  "dimensions": "- x - x -",
+  "dateEmballage": "-",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "validatedAt": "",
+  "files": [
+    {
+      "name": "100867 - 1.xlsx",
+      "size": 25805
+    }
+  ],
+  "managerSheets": []
+}

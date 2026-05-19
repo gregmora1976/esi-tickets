@@ -1,0 +1,40 @@
+{
+  "id": "DEM-043",
+  "module": "Fiche de caisse",
+  "status": "Terminé",
+  "createdAt": "2026-05-11T16:53:32.767061",
+  "updatedAt": "2026-05-18T08:38:20.244492",
+  "dossier": "100867",
+  "ref": "01",
+  "preteur": "Orsay",
+  "expo": "Corsica",
+  "objet": "Corsica",
+  "chargeProjet": "Elise K",
+  "typeCaisse": "caisse tableau",
+  "dimensions": "- x - x -",
+  "dateEmballage": "-",
+  "prixDevis": "-",
+  "dateRdv": "-",
+  "heureRdv": "-",
+  "lieuRdv": "-",
+  "commentaire": "",
+  "validatedAt": "",
+  "fiche": {
+    "longueur": "94",
+    "largeur": "24",
+    "hauteur": "82",
+    "dimensionsExt": "94 x 24 x 82",
+    "prixAchat": "305 €",
+    "typeCaisseFiche": "tableau",
+    "bilanCarbone": "17",
+    "poids": "",
+    "choixCaissier": "arckx"
+  },
+  "files": [],
+  "managerSheets": [
+    {
+      "name": "100867-01.xlsx",
+      "size": 50922
+    }
+  ]
+}
