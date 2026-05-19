@@ -5,7 +5,8 @@ from pathlib import Path
 import json, threading, webbrowser, os, sqlite3
 from datetime import datetime
 
-# Sauvegarde automatique GitHub Render
+# Sauvegar
+de automatique GitHub Render
 try:
     from backup_github import backup_to_github
     from restore_github import restore_from_github_if_needed
@@ -423,10 +424,22 @@ def api_create_ticket():
         if not fs.filename:
             continue
 
+        content = fs.read()
+
+        supabase.storage.from_("uploads").upload(
+            path=f"{ticket_id}/{fs.filename}",
+            file=content,
+            file_options={
+                "content-type": fs.content_type
+    }
+    )
+        
+
         ticket['files'].append({
-           'name': fs.filename,
-           'size': 0
-        })
+            'name': fs.filename,
+            'size': len(content),
+            'path': f"{ticket_id}/{fs.filename}"
+})
 
     save_ticket(ticket)
     return jsonify({'ok': True, 'id': ticket_id})
