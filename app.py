@@ -135,6 +135,10 @@ def init_db():
             FOREIGN KEY(ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
         )
         """)
+        try:
+            conn.execute("ALTER TABLE files ADD COLUMN path TEXT")
+        except Exception:
+            pass
         conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_module ON tickets(module)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_dossier ON tickets(dossier)")
