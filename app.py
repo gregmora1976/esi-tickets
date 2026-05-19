@@ -425,14 +425,13 @@ def api_create_ticket():
             continue
 
         content = fs.read()
-
-        path=f"{ticket_id}/{datetime.now().strftime('%Y%m%d%H%M%S')}_{fs.filename}",
-            path=f"{ticket_id}/{fs.filename}",
+        supabase.storage.from_("uploads").upload(
+            path=f"{ticket_id}/{datetime.now().strftime('%Y%m%d%H%M%S')}_{fs.filename}",
             file=content,
             file_options={
                 "content-type": fs.content_type
-    }
-)
+            }
+        )
         
 
         ticket['files'].append({
