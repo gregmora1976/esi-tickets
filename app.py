@@ -867,8 +867,9 @@ END:VCALENDAR"""
     return Response(ics, mimetype='text/calendar')
 
 
-
+print("[BACKUP] Scheduler appelé au démarrage Render")
 def start_github_backup_scheduler():
+    print("[BACKUP] Fonction start_github_backup_scheduler lancée")
     if backup_to_github is None:
         return
 
