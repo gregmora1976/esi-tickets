@@ -31,7 +31,7 @@ def supabase_upload_bytes(storage_path, content, content_type="application/octet
         raise RuntimeError("Variables SUPABASE_URL ou SUPABASE_SERVICE_KEY manquantes")
 
     safe_path = urllib.parse.quote(storage_path, safe="/")
-    url = f"{SUPABASE_URL}/storage/v1/object/upload/{SUPABASE_BUCKET}/{safe_path}"
+    url = f"{SUPABASE_URL}/storage/v1/object{SUPABASE_BUCKET}/{safe_path}"
 
     req = urllib.request.Request(
         url,
@@ -54,7 +54,7 @@ def supabase_download_bytes(storage_path):
         raise RuntimeError("Variables SUPABASE_URL ou SUPABASE_SERVICE_KEY manquantes")
 
     safe_path = urllib.parse.quote(storage_path, safe="/")
-    url = f"{SUPABASE_URL}/storage/v1/object/upload/{SUPABASE_BUCKET}/{safe_path}"
+    url = f"{SUPABASE_URL}/storage/v1/object{SUPABASE_BUCKET}/{safe_path}"
 
     req = urllib.request.Request(
         url,
