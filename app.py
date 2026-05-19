@@ -888,12 +888,12 @@ def start_github_backup_scheduler():
 
 def open_browser():
     webbrowser.open('http://127.0.0.1:5050/splash')
+ensure_shared_root()
 
+if restore_from_github_if_needed is not None:
+    restore_from_github_if_needed()
+
+init_db()
+start_github_backup_scheduler()
 if __name__ == '__main__':
-    ensure_shared_root()
-    if restore_from_github_if_needed is not None:
-        restore_from_github_if_needed()
-    init_db()
-    start_github_backup_scheduler()
-    # Ouverture navigateur gérée par chargement.html
-    app.run(host='127.0.0.1', port=5050, debug=False)
+      app.run(host='127.0.0.1', port=5050, debug=False)
