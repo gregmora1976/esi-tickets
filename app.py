@@ -1,8 +1,6 @@
-from supabase import create_client
-from supabase_upload import upload_file_to_supabase
 from flask import Flask, render_template, jsonify, request, send_file, abort, redirect, url_for
 from pathlib import Path
-import json, threading, webbrowser, os, sqlite3
+import json, threading, webbrowser, os, sqlite3, urllib.request, urllib.parse
 from datetime import datetime
 
 # Sauvegarde automatique GitHub Render
@@ -21,11 +19,54 @@ CONFIG_FILE = DATA_DIR / 'config.json'
 DB_FILE = DATA_DIR / 'esi_tickets.db'
 TICKETS_SUB = 'tickets'
 FILES_SUB = 'fichiers'
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+SUPABASE_URL = (os.getenv("SUPABASE_URL") or "").rstrip("/")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY") or ""
+SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "uploads")
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 app = Flask(__name__, template_folder='templates', static_folder='static')
+
+def supabase_upload_bytes(storage_path, content, content_type="application/octet-stream"):
+    """Envoie un fichier dans Supabase Storage sans dépendre du SDK Python."""
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        raise RuntimeError("Variables SUPABASE_URL ou SUPABASE_SERVICE_KEY manquantes")
+
+    safe_path = urllib.parse.quote(storage_path, safe="/")
+    url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{safe_path}"
+
+    req = urllib.request.Request(
+        url,
+        data=content,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "apikey": SUPABASE_KEY,
+            "Content-Type": content_type or "application/octet-stream",
+            "x-upsert": "true"
+        }
+    )
+
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        return resp.read()
+
+def supabase_download_bytes(storage_path):
+    """Télécharge un fichier depuis Supabase Storage."""
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        raise RuntimeError("Variables SUPABASE_URL ou SUPABASE_SERVICE_KEY manquantes")
+
+    safe_path = urllib.parse.quote(storage_path, safe="/")
+    url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{safe_path}"
+
+    req = urllib.request.Request(
+        url,
+        method="GET",
+        headers={
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "apikey": SUPABASE_KEY
+        }
+    )
+
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        return resp.read()
 
 def choose_shared_folder():
     try:
@@ -194,11 +235,7 @@ def _attach_children(conn, ticket):
     ticket['managerSheets'] = []
     rows = conn.execute("SELECT kind, name, size, path FROM files WHERE ticket_id=? ORDER BY id", (ticket['id'],)).fetchall()
     for f in rows:
-        item = {
-            'name': f['name'] or '',
-            'size': f['size'],
-            'path': f['path'] or ''
-        }
+        item = {'name': f['name'] or '', 'size': f['size'], 'path': f['path'] or ''}
         if f['kind'] == 'gestionnaire':
             ticket['managerSheets'].append(item)
         else:
@@ -323,13 +360,7 @@ def save_ticket(ticket):
         conn.execute("DELETE FROM files WHERE ticket_id=?", (ticket.get('id'),))
         for fs in ticket.get('files') or []:
             if fs and fs.get('name'):
-                conn.execute("INSERT INTO files(ticket_id, kind, name, size, path) VALUES (?,?,?,?,?)", (
-                    ticket.get('id'),
-                    'demandeur',
-                    _as_text(fs.get('name')),
-                    fs.get('size'),
-                    _as_text(fs.get('path'))
-                ))
+                conn.execute("INSERT INTO files(ticket_id, kind, name, size, path) VALUES (?,?,?,?,?)", (ticket.get('id'), 'demandeur', _as_text(fs.get('name')), fs.get('size'), _as_text(fs.get('path'))))
 
         manager_sheets = list(ticket.get('managerSheets') or [])
         legacy = ticket.get('managerSheet')
@@ -433,7 +464,7 @@ def api_create_ticket():
         'files': [],
         'managerSheets': []
     }
-    folder = ticket_folder(ticket_id)
+    ticket_folder(ticket_id)  # conserve la création du dossier local historique
 
     for fs in request.files.getlist('files'):
         if not fs.filename:
@@ -442,17 +473,17 @@ def api_create_ticket():
         content = fs.read()
         storage_path = f"{ticket_id}/{datetime.now().strftime('%Y%m%d%H%M%S')}_{fs.filename}"
 
-        supabase.storage.from_("uploads").upload(
+        supabase_upload_bytes(
             storage_path,
-            content
+            content,
+            fs.content_type
         )
-        
 
         ticket['files'].append({
             'name': fs.filename,
             'size': len(content),
             'path': storage_path
-})
+        })
 
     save_ticket(ticket)
     return jsonify({'ok': True, 'id': ticket_id})
@@ -542,31 +573,33 @@ def api_manager_sheet(ticket_id):
 
 @app.route('/api/tickets/<ticket_id>/download/<filename>')
 def api_download_file(ticket_id, filename):
+    import io
 
     ticket = load_ticket(ticket_id)
-
     if not ticket:
         abort(404)
 
-    file_info = next(
-        (f for f in ticket.get('files', []) if f.get('name') == filename),
-        None
-    )
+    file_info = None
+    for f in ticket.get('files') or []:
+        if f.get('name') == filename:
+            file_info = f
+            break
 
     if not file_info:
         abort(404)
 
     storage_path = file_info.get('path')
-
     if not storage_path:
         abort(404)
 
-    data = supabase.storage.from_("uploads").download(storage_path)
-
-    from io import BytesIO
+    try:
+        data = supabase_download_bytes(storage_path)
+    except Exception as e:
+        print(f"[SUPABASE DOWNLOAD] Erreur : {e}")
+        abort(404)
 
     return send_file(
-        BytesIO(data),
+        io.BytesIO(data),
         as_attachment=True,
         download_name=filename
     )
