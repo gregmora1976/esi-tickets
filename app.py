@@ -132,6 +132,7 @@ def init_db():
             kind TEXT,
             name TEXT,
             size INTEGER,
+            path TEXT,
             FOREIGN KEY(ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
         )
         """)
@@ -191,9 +192,13 @@ def _attach_children(conn, ticket):
 
     ticket['files'] = []
     ticket['managerSheets'] = []
-    rows = conn.execute("SELECT kind, name, size FROM files WHERE ticket_id=? ORDER BY id", (ticket['id'],)).fetchall()
+    rows = conn.execute("SELECT kind, name, size, path FROM files WHERE ticket_id=? ORDER BY id", (ticket['id'],)).fetchall()
     for f in rows:
-        item = {'name': f['name'] or '', 'size': f['size']}
+        item = {
+            'name': f['name'] or '',
+            'size': f['size'],
+            'path': f['path'] or ''
+        }
         if f['kind'] == 'gestionnaire':
             ticket['managerSheets'].append(item)
         else:
@@ -318,7 +323,13 @@ def save_ticket(ticket):
         conn.execute("DELETE FROM files WHERE ticket_id=?", (ticket.get('id'),))
         for fs in ticket.get('files') or []:
             if fs and fs.get('name'):
-                conn.execute("INSERT INTO files(ticket_id, kind, name, size) VALUES (?,?,?,?)", (ticket.get('id'), 'demandeur', _as_text(fs.get('name')), fs.get('size')))
+                conn.execute("INSERT INTO files(ticket_id, kind, name, size, path) VALUES (?,?,?,?,?)", (
+                    ticket.get('id'),
+                    'demandeur',
+                    _as_text(fs.get('name')),
+                    fs.get('size'),
+                    _as_text(fs.get('path'))
+                ))
 
         manager_sheets = list(ticket.get('managerSheets') or [])
         legacy = ticket.get('managerSheet')
@@ -531,10 +542,34 @@ def api_manager_sheet(ticket_id):
 
 @app.route('/api/tickets/<ticket_id>/download/<filename>')
 def api_download_file(ticket_id, filename):
-    path = ticket_folder(ticket_id) / filename
-    if not path.exists():
+
+    ticket = load_ticket(ticket_id)
+
+    if not ticket:
         abort(404)
-    return send_file(path, as_attachment=True, download_name=filename)
+
+    file_info = next(
+        (f for f in ticket.get('files', []) if f.get('name') == filename),
+        None
+    )
+
+    if not file_info:
+        abort(404)
+
+    storage_path = file_info.get('path')
+
+    if not storage_path:
+        abort(404)
+
+    data = supabase.storage.from_("uploads").download(storage_path)
+
+    from io import BytesIO
+
+    return send_file(
+        BytesIO(data),
+        as_attachment=True,
+        download_name=filename
+    )
 
 @app.route('/api/tickets/<ticket_id>/download-sheet/<filename>')
 def api_download_sheet(ticket_id, filename):
