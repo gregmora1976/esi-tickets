@@ -417,7 +417,7 @@ def api_create_ticket():
         'files': [],
         'managerSheets': []
     }
-    folder = ticket_folder(ticket_id)
+folder = ticket_folder(ticket_id)
 for fs in request.files.getlist('files'):
     if not fs.filename:
         continue
@@ -436,8 +436,9 @@ for fs in request.files.getlist('files'):
         'name': fs.filename,
         'size': size
     })
-    save_ticket(ticket)
-    return jsonify({'ok': True, 'id': ticket_id})
+
+save_ticket(ticket)
+return jsonify({'ok': True, 'id': ticket_id})
 
 
 @app.route('/api/tickets/<ticket_id>', methods=['PUT'])
