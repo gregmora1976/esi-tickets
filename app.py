@@ -1,4 +1,4 @@
-
+from supabase_upload import upload_file_to_supabase
 from flask import Flask, render_template, jsonify, request, send_file, abort, redirect, url_for
 from pathlib import Path
 import json, threading, webbrowser, os, sqlite3
