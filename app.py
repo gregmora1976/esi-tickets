@@ -437,8 +437,8 @@ for fs in request.files.getlist('files'):
         'size': size
     })
 
-save_ticket(ticket)
-return jsonify({'ok': True, 'id': ticket_id})
+    save_ticket(ticket)
+    return jsonify({'ok': True, 'id': ticket_id})
 
 
 @app.route('/api/tickets/<ticket_id>', methods=['PUT'])
