@@ -5,7 +5,7 @@ from pathlib import Path
 import json, threading, webbrowser, os, sqlite3
 from datetime import datetime
 
-# Sauvegarde
+# Sauvegarde automatique GitHub Render
 
 try:
     from backup_github import backup_to_github
