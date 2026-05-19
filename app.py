@@ -4,6 +4,15 @@ from pathlib import Path
 import json, threading, webbrowser, os, sqlite3
 from datetime import datetime
 
+# Sauvegarde automatique GitHub Render
+try:
+    from backup_github import backup_to_github
+    from restore_github import restore_from_github_if_needed
+except Exception:
+    backup_to_github = None
+    restore_from_github_if_needed = None
+
+
 APP_DIR = Path(__file__).resolve().parent
 DATA_DIR = APP_DIR / 'data'
 CONFIG_FILE = DATA_DIR / 'config.json'
@@ -858,11 +867,33 @@ END:VCALENDAR"""
     return Response(ics, mimetype='text/calendar')
 
 
+
+def start_github_backup_scheduler():
+    if backup_to_github is None:
+        return
+
+    def loop():
+        import time
+        time.sleep(120)
+        while True:
+            try:
+                backup_to_github()
+            except Exception as e:
+                print(f"[BACKUP] Erreur planification : {e}")
+            time.sleep(300)
+
+    t = threading.Thread(target=loop, daemon=True)
+    t.start()
+
+
 def open_browser():
     webbrowser.open('http://127.0.0.1:5050/splash')
 
 if __name__ == '__main__':
     ensure_shared_root()
+    if restore_from_github_if_needed is not None:
+        restore_from_github_if_needed()
     init_db()
+    start_github_backup_scheduler()
     # Ouverture navigateur gérée par chargement.html
     app.run(host='127.0.0.1', port=5050, debug=False)
