@@ -1,22 +1,11 @@
 from flask import Flask, render_template, jsonify, request, send_file, abort, redirect, url_for
 from pathlib import Path
-import json, threading, webbrowser, os, urllib.request, urllib.parse
+import json, webbrowser, os, urllib.request, urllib.parse
 from datetime import datetime
-
-# Sauvegarde automatique GitHub Render
-
-try:
-    from backup_github import backup_to_github
-    from restore_github import restore_from_github_if_needed
-except Exception:
-    backup_to_github = None
-    restore_from_github_if_needed = None
-
 
 APP_DIR = Path(__file__).resolve().parent
 DATA_DIR = APP_DIR / 'data'
 CONFIG_FILE = DATA_DIR / 'config.json'
-DB_FILE = DATA_DIR / 'esi_tickets.db'
 TICKETS_SUB = 'tickets'
 FILES_SUB = 'fichiers'
 SUPABASE_URL = (os.getenv("SUPABASE_URL") or "").rstrip("/")
@@ -88,6 +77,37 @@ def supabase_download_bytes(storage_path):
 
     with urllib.request.urlopen(req, timeout=60) as resp:
         return resp.read()
+
+
+def supabase_signed_download_url(storage_path, expires_in=300):
+    """Crée une URL signée Supabase Storage pour éviter de faire transiter le fichier par Render."""
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        raise RuntimeError("Variables SUPABASE_URL ou SUPABASE_SERVICE_KEY manquantes")
+
+    safe_path = urllib.parse.quote(storage_path, safe="/")
+    url = f"{SUPABASE_URL}/storage/v1/object/sign/{SUPABASE_BUCKET}/{safe_path}"
+
+    payload = json.dumps({"expiresIn": int(expires_in)}).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "apikey": SUPABASE_KEY,
+            "Content-Type": "application/json"
+        }
+    )
+
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        body = json.loads(resp.read().decode("utf-8", errors="replace"))
+
+    signed = body.get("signedURL") or body.get("signedUrl") or body.get("url")
+    if not signed:
+        raise RuntimeError(f"Réponse URL signée invalide : {body}")
+    if signed.startswith("http"):
+        return signed
+    return SUPABASE_URL + signed
 
 def choose_shared_folder():
     try:
@@ -272,7 +292,20 @@ def _fiche_from_db_row(row):
     }
 
 
+def _add_file_to_ticket(ticket, f):
+    item = {
+        "name": f.get("filename") or "",
+        "size": f.get("size") or 0,
+        "path": f.get("storage_path") or ""
+    }
+    if f.get("kind") == "gestionnaire":
+        ticket.setdefault("managerSheets", []).append(item)
+    else:
+        ticket.setdefault("files", []).append(item)
+
+
 def _attach_children(ticket):
+    """Charge les enfants d'un seul ticket. Utilisé pour les actions ciblées."""
     tid = ticket.get("id")
     if not tid:
         return ticket
@@ -296,24 +329,65 @@ def _attach_children(ticket):
     ticket["files"] = []
     ticket["managerSheets"] = []
     for f in rows:
-        item = {
-            "name": f.get("filename") or "",
-            "size": f.get("size") or 0,
-            "path": f.get("storage_path") or ""
-        }
-        if f.get("kind") == "gestionnaire":
-            ticket["managerSheets"].append(item)
-        else:
-            ticket["files"].append(item)
+        _add_file_to_ticket(ticket, f)
 
     return ticket
 
 
-def list_tickets():
-    rows = supabase_rest_request("GET", "tickets", "select=*&order=created_at.desc") or []
-    tickets = []
-    for row in rows:
-        tickets.append(_attach_children(_ticket_from_db_row(row)))
+def _chunks(values, size=100):
+    for i in range(0, len(values), size):
+        yield values[i:i + size]
+
+
+def _in_filter(values):
+    # Format PostgREST : in.(DEM-001,DEM-002). Les ids internes ne contiennent pas de virgule.
+    return urllib.parse.quote(",".join(values), safe=",-_")
+
+
+def list_tickets(status=None, limit=None):
+    query = "select=*&order=created_at.desc"
+    if status:
+        query += "&status=eq." + urllib.parse.quote(status, safe='')
+    if limit:
+        query += "&limit=" + str(int(limit))
+
+    rows = supabase_rest_request("GET", "tickets", query) or []
+    tickets = [_ticket_from_db_row(row) for row in rows]
+
+    by_id = {t.get("id"): t for t in tickets if t.get("id")}
+    ids = list(by_id.keys())
+    if not ids:
+        return tickets
+
+    # Initialisation des listes pour éviter les champs absents côté interface
+    for t in tickets:
+        t["files"] = []
+        t["managerSheets"] = []
+
+    # Chargement groupé des fiches : au lieu de 1 requête par ticket
+    for part in _chunks(ids):
+        fiches = supabase_rest_request(
+            "GET",
+            "fiches",
+            "select=*&ticket_id=in.(" + _in_filter(part) + ")"
+        ) or []
+        for f in fiches:
+            tid = f.get("ticket_id")
+            if tid in by_id:
+                by_id[tid]["fiche"] = _fiche_from_db_row(f)
+
+    # Chargement groupé des fichiers : au lieu de 1 requête par ticket
+    for part in _chunks(ids):
+        rows_files = supabase_rest_request(
+            "GET",
+            "ticket_files",
+            "select=*&ticket_id=in.(" + _in_filter(part) + ")&order=uploaded_at.asc"
+        ) or []
+        for f in rows_files:
+            tid = f.get("ticket_id")
+            if tid in by_id:
+                _add_file_to_ticket(by_id[tid], f)
+
     return tickets
 
 
@@ -465,9 +539,8 @@ def api_status():
 @app.route('/api/tickets')
 def api_tickets():
     status = request.args.get('status')
-    tickets = list_tickets()
-    if status:
-        tickets = [t for t in tickets if t.get('status') == status]
+    limit = request.args.get('limit')
+    tickets = list_tickets(status=status, limit=limit)
     return jsonify(tickets)
 
 @app.route('/api/tickets', methods=['POST'])
@@ -624,20 +697,20 @@ def api_manager_sheet(ticket_id):
     save_ticket(ticket)
     return jsonify({'ok': True})
 
-@app.route('/api/tickets/<ticket_id>/download/<filename>')
-def api_download_file(ticket_id, filename):
-    import io
+def _find_file_info(ticket, filename, kind):
+    items = ticket.get('managerSheets') if kind == 'gestionnaire' else ticket.get('files')
+    for f in items or []:
+        if f.get('name') == filename:
+            return f
+    return None
 
+
+def _redirect_to_signed_file(ticket_id, filename, kind):
     ticket = load_ticket(ticket_id)
     if not ticket:
         abort(404)
 
-    file_info = None
-    for f in ticket.get('files') or []:
-        if f.get('name') == filename:
-            file_info = f
-            break
-
+    file_info = _find_file_info(ticket, filename, kind)
     if not file_info:
         abort(404)
 
@@ -646,49 +719,29 @@ def api_download_file(ticket_id, filename):
         abort(404)
 
     try:
-        data = supabase_download_bytes(storage_path)
+        signed_url = supabase_signed_download_url(storage_path, expires_in=300)
     except Exception as e:
-        print(f"[SUPABASE DOWNLOAD] Erreur : {e}")
-        abort(404)
+        # Secours : si l'URL signée échoue, on garde l'ancien comportement via Render.
+        print(f"[SUPABASE SIGNED DOWNLOAD] Erreur, fallback Render : {e}")
+        import io
+        try:
+            data = supabase_download_bytes(storage_path)
+        except Exception as e2:
+            print(f"[SUPABASE DOWNLOAD] Erreur : {e2}")
+            abort(404)
+        return send_file(io.BytesIO(data), as_attachment=True, download_name=filename)
 
-    return send_file(
-        io.BytesIO(data),
-        as_attachment=True,
-        download_name=filename
-    )
+    return redirect(signed_url)
+
+
+@app.route('/api/tickets/<ticket_id>/download/<filename>')
+def api_download_file(ticket_id, filename):
+    return _redirect_to_signed_file(ticket_id, filename, 'demandeur')
+
 
 @app.route('/api/tickets/<ticket_id>/download-sheet/<filename>')
 def api_download_sheet(ticket_id, filename):
-    import io
-
-    ticket = load_ticket(ticket_id)
-    if not ticket:
-        abort(404)
-
-    file_info = None
-    for f in ticket.get('managerSheets') or []:
-        if f.get('name') == filename:
-            file_info = f
-            break
-
-    if not file_info:
-        abort(404)
-
-    storage_path = file_info.get('path')
-    if not storage_path:
-        abort(404)
-
-    try:
-        data = supabase_download_bytes(storage_path)
-    except Exception as e:
-        print(f"[SUPABASE DOWNLOAD SHEET] Erreur : {e}")
-        abort(404)
-
-    return send_file(
-        io.BytesIO(data),
-        as_attachment=True,
-        download_name=filename
-    )
+    return _redirect_to_signed_file(ticket_id, filename, 'gestionnaire')
 
 
 @app.route('/api/tickets/<ticket_id>/fiche', methods=['GET'])
@@ -940,127 +993,6 @@ def api_export_ticket_pdf(ticket_id):
 
 
 
-@app.route('/api/migrate-sqlite-to-supabase')
-def api_migrate_sqlite_to_supabase():
-    """Migration temporaire : importe les anciens tickets/fiches SQLite vers Supabase.
-
-    Usage conseillé : /api/migrate-sqlite-to-supabase?confirm=OUI
-    Optionnel : ajouter &overwrite=1 pour écraser les tickets existants.
-    Les fichiers joints ne sont pas migrés.
-    """
-    import sqlite3
-
-    secret = os.getenv("MIGRATION_SECRET", "")
-    if secret and request.args.get("secret") != secret:
-        return jsonify({"ok": False, "error": "Secret migration incorrect"}), 403
-
-    if request.args.get("confirm") != "OUI":
-        return jsonify({
-            "ok": False,
-            "message": "Migration non lancée. Ajoute ?confirm=OUI à l'URL pour confirmer.",
-            "exemple": "/api/migrate-sqlite-to-supabase?confirm=OUI"
-        }), 400
-
-    if not DB_FILE.exists():
-        return jsonify({
-            "ok": False,
-            "error": f"Ancienne base SQLite introuvable : {DB_FILE}"
-        }), 404
-
-    overwrite = request.args.get("overwrite") == "1"
-    imported = 0
-    skipped = 0
-    errors = []
-
-    def old_value(row, key, default=''):
-        try:
-            value = row[key]
-        except Exception:
-            value = default
-        return '' if value is None else str(value)
-
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        conn.row_factory = sqlite3.Row
-    except Exception as e:
-        return jsonify({"ok": False, "error": f"Impossible d'ouvrir SQLite : {e}"}), 500
-
-    try:
-        ticket_rows = conn.execute("SELECT * FROM tickets ORDER BY createdAt ASC").fetchall()
-    except Exception as e:
-        conn.close()
-        return jsonify({"ok": False, "error": f"Table tickets illisible : {e}"}), 500
-
-    for row in ticket_rows:
-        ticket_id = old_value(row, 'id')
-        if not ticket_id:
-            continue
-
-        try:
-            existing = load_ticket(ticket_id)
-            if existing and not overwrite:
-                skipped += 1
-                continue
-
-            ticket = {
-                'id': ticket_id,
-                'module': old_value(row, 'module'),
-                'status': old_value(row, 'status') or 'Demande créée',
-                'createdAt': old_value(row, 'createdAt') or datetime.now().isoformat(),
-                'updatedAt': old_value(row, 'updatedAt'),
-                'dossier': old_value(row, 'dossier'),
-                'ref': old_value(row, 'ref'),
-                'preteur': old_value(row, 'preteur') or '-',
-                'expo': old_value(row, 'expo') or '-',
-                'objet': old_value(row, 'objet') or '-',
-                'chargeProjet': old_value(row, 'chargeProjet') or '-',
-                'typeCaisse': old_value(row, 'typeCaisse') or '-',
-                'dimensions': old_value(row, 'dimensions') or '-',
-                'dateEmballage': old_value(row, 'dateEmballage') or '-',
-                'prixDevis': old_value(row, 'prixDevis') or '-',
-                'dateRdv': old_value(row, 'dateRdv') or '-',
-                'heureRdv': old_value(row, 'heureRdv') or '-',
-                'lieuRdv': old_value(row, 'lieuRdv') or '-',
-                'commentaire': old_value(row, 'commentaire'),
-                'validatedAt': old_value(row, 'validatedAt'),
-                'files': [],
-                'managerSheets': []
-            }
-
-            try:
-                fiche = conn.execute("SELECT * FROM fiches WHERE ticket_id=?", (ticket_id,)).fetchone()
-            except Exception:
-                fiche = None
-
-            if fiche:
-                ticket['fiche'] = {
-                    'longueur': old_value(fiche, 'longueur'),
-                    'largeur': old_value(fiche, 'largeur'),
-                    'hauteur': old_value(fiche, 'hauteur'),
-                    'dimensionsExt': old_value(fiche, 'dimensionsExt'),
-                    'prixAchat': old_value(fiche, 'prixAchat'),
-                    'typeCaisseFiche': old_value(fiche, 'typeCaisseFiche'),
-                    'bilanCarbone': old_value(fiche, 'bilanCarbone'),
-                    'poids': old_value(fiche, 'poids'),
-                    'choixCaissier': old_value(fiche, 'choixCaissier')
-                }
-
-            save_ticket(ticket)
-            imported += 1
-        except Exception as e:
-            errors.append({"ticket": ticket_id, "error": str(e)})
-
-    conn.close()
-
-    return jsonify({
-        "ok": len(errors) == 0,
-        "sqlite_file": str(DB_FILE),
-        "imported": imported,
-        "skipped_existing": skipped,
-        "errors": errors[:20],
-        "errors_count": len(errors),
-        "message": "Migration terminée. Les fichiers joints n'ont volontairement pas été migrés."
-    })
 
 @app.route('/api/restart')
 def api_restart():
@@ -1146,16 +1078,11 @@ END:VCALENDAR"""
 
 
 
-def start_github_backup_scheduler():
-    # Les tickets ne sont plus sauvegardés dans GitHub : Supabase Database est la source fiable.
-    print("[BACKUP] Désactivé : stockage principal Supabase Database")
-
-
 def open_browser():
     webbrowser.open('http://127.0.0.1:5050/splash')
 
 ensure_shared_root()
 init_db()
-start_github_backup_scheduler()
+
 if __name__ == '__main__':
       app.run(host='127.0.0.1', port=5050, debug=False)
