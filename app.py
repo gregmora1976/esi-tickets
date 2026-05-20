@@ -1045,8 +1045,11 @@ def open_browser():
     webbrowser.open('http://127.0.0.1:5050/splash')
 ensure_shared_root()
 
-if restore_from_github_if_needed is not None:
+if restore_from_github_if_needed is not None and not DB_FILE.exists():
+    print("[RESTORE] Base absente -> restauration GitHub")
     restore_from_github_if_needed()
+else:
+    print("[RESTORE] Base locale déjà présente -> pas de restauration")
 
 init_db()
 start_github_backup_scheduler()
