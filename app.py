@@ -107,7 +107,7 @@ def supabase_signed_download_url(storage_path, expires_in=300):
         raise RuntimeError(f"Réponse URL signée invalide : {body}")
     if signed.startswith("http"):
         return signed
-    return SUPABASE_URL + signed
+    return SUPABASE_URL + "/storage/v1" + signed
 
 def choose_shared_folder():
     try:
