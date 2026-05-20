@@ -36,7 +36,7 @@ def supabase_upload_bytes(storage_path, content, content_type="application/octet
     req = urllib.request.Request(
         url,
         data=content,
-        method="GET",
+        method="POST",
         headers={
             "Authorization": f"Bearer {SUPABASE_KEY}",
             "apikey": SUPABASE_KEY,
