@@ -45,8 +45,20 @@ def supabase_upload_bytes(storage_path, content, content_type="application/octet
         }
     )
 
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        return resp.read()
+    print("[SUPABASE UPLOAD URL]", url)
+    print("[SUPABASE UPLOAD BUCKET]", SUPABASE_BUCKET)
+    print("[SUPABASE UPLOAD PATH]", safe_path)
+
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            return resp.read()
+    except urllib.error.HTTPError as e:
+        try:
+            body = e.read().decode("utf-8", errors="replace")
+        except Exception:
+            body = ""
+        print(f"[SUPABASE UPLOAD ERROR] HTTP {e.code} - {e.reason} - {body}")
+        raise
 
 def supabase_download_bytes(storage_path):
     """Télécharge un fichier depuis Supabase Storage."""
