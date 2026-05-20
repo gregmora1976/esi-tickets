@@ -939,6 +939,129 @@ def api_export_ticket_pdf(ticket_id):
     )
 
 
+
+@app.route('/api/migrate-sqlite-to-supabase')
+def api_migrate_sqlite_to_supabase():
+    """Migration temporaire : importe les anciens tickets/fiches SQLite vers Supabase.
+
+    Usage conseillé : /api/migrate-sqlite-to-supabase?confirm=OUI
+    Optionnel : ajouter &overwrite=1 pour écraser les tickets existants.
+    Les fichiers joints ne sont pas migrés.
+    """
+    import sqlite3
+
+    secret = os.getenv("MIGRATION_SECRET", "")
+    if secret and request.args.get("secret") != secret:
+        return jsonify({"ok": False, "error": "Secret migration incorrect"}), 403
+
+    if request.args.get("confirm") != "OUI":
+        return jsonify({
+            "ok": False,
+            "message": "Migration non lancée. Ajoute ?confirm=OUI à l'URL pour confirmer.",
+            "exemple": "/api/migrate-sqlite-to-supabase?confirm=OUI"
+        }), 400
+
+    if not DB_FILE.exists():
+        return jsonify({
+            "ok": False,
+            "error": f"Ancienne base SQLite introuvable : {DB_FILE}"
+        }), 404
+
+    overwrite = request.args.get("overwrite") == "1"
+    imported = 0
+    skipped = 0
+    errors = []
+
+    def old_value(row, key, default=''):
+        try:
+            value = row[key]
+        except Exception:
+            value = default
+        return '' if value is None else str(value)
+
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        conn.row_factory = sqlite3.Row
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Impossible d'ouvrir SQLite : {e}"}), 500
+
+    try:
+        ticket_rows = conn.execute("SELECT * FROM tickets ORDER BY createdAt ASC").fetchall()
+    except Exception as e:
+        conn.close()
+        return jsonify({"ok": False, "error": f"Table tickets illisible : {e}"}), 500
+
+    for row in ticket_rows:
+        ticket_id = old_value(row, 'id')
+        if not ticket_id:
+            continue
+
+        try:
+            existing = load_ticket(ticket_id)
+            if existing and not overwrite:
+                skipped += 1
+                continue
+
+            ticket = {
+                'id': ticket_id,
+                'module': old_value(row, 'module'),
+                'status': old_value(row, 'status') or 'Demande créée',
+                'createdAt': old_value(row, 'createdAt') or datetime.now().isoformat(),
+                'updatedAt': old_value(row, 'updatedAt'),
+                'dossier': old_value(row, 'dossier'),
+                'ref': old_value(row, 'ref'),
+                'preteur': old_value(row, 'preteur') or '-',
+                'expo': old_value(row, 'expo') or '-',
+                'objet': old_value(row, 'objet') or '-',
+                'chargeProjet': old_value(row, 'chargeProjet') or '-',
+                'typeCaisse': old_value(row, 'typeCaisse') or '-',
+                'dimensions': old_value(row, 'dimensions') or '-',
+                'dateEmballage': old_value(row, 'dateEmballage') or '-',
+                'prixDevis': old_value(row, 'prixDevis') or '-',
+                'dateRdv': old_value(row, 'dateRdv') or '-',
+                'heureRdv': old_value(row, 'heureRdv') or '-',
+                'lieuRdv': old_value(row, 'lieuRdv') or '-',
+                'commentaire': old_value(row, 'commentaire'),
+                'validatedAt': old_value(row, 'validatedAt'),
+                'files': [],
+                'managerSheets': []
+            }
+
+            try:
+                fiche = conn.execute("SELECT * FROM fiches WHERE ticket_id=?", (ticket_id,)).fetchone()
+            except Exception:
+                fiche = None
+
+            if fiche:
+                ticket['fiche'] = {
+                    'longueur': old_value(fiche, 'longueur'),
+                    'largeur': old_value(fiche, 'largeur'),
+                    'hauteur': old_value(fiche, 'hauteur'),
+                    'dimensionsExt': old_value(fiche, 'dimensionsExt'),
+                    'prixAchat': old_value(fiche, 'prixAchat'),
+                    'typeCaisseFiche': old_value(fiche, 'typeCaisseFiche'),
+                    'bilanCarbone': old_value(fiche, 'bilanCarbone'),
+                    'poids': old_value(fiche, 'poids'),
+                    'choixCaissier': old_value(fiche, 'choixCaissier')
+                }
+
+            save_ticket(ticket)
+            imported += 1
+        except Exception as e:
+            errors.append({"ticket": ticket_id, "error": str(e)})
+
+    conn.close()
+
+    return jsonify({
+        "ok": len(errors) == 0,
+        "sqlite_file": str(DB_FILE),
+        "imported": imported,
+        "skipped_existing": skipped,
+        "errors": errors[:20],
+        "errors_count": len(errors),
+        "message": "Migration terminée. Les fichiers joints n'ont volontairement pas été migrés."
+    })
+
 @app.route('/api/restart')
 def api_restart():
     import os
