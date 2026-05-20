@@ -691,20 +691,6 @@ def api_download_sheet(ticket_id, filename):
     )
 
 
-def load_ticket(ticket_id):
-    init_db()
-    try:
-        with db_connect() as conn:
-            row = conn.execute("SELECT * FROM tickets WHERE id=?", (ticket_id,)).fetchone()
-            if row:
-                return _attach_children(conn, _ticket_from_row(row))
-    except Exception:
-        pass
-    path = ticket_file(ticket_id)
-    if not path.exists():
-        return None
-    return json.loads(path.read_text(encoding='utf-8'))
-
 @app.route('/api/tickets/<ticket_id>/fiche', methods=['GET'])
 def api_get_fiche(ticket_id):
     ticket = load_ticket(ticket_id)
