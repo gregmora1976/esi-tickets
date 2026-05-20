@@ -537,76 +537,111 @@ function openDoneTicketDetails(ticket){
   const modal = document.getElementById('doneModal');
   const title = document.getElementById('doneModalTitle');
   const body = document.getElementById('doneModalBody');
-  const fiche = ticket.fiche || {};
   const managerSheets = (ticket.managerSheets && ticket.managerSheets.length)
     ? ticket.managerSheets
     : (ticket.managerSheet && ticket.managerSheet.name ? [ticket.managerSheet] : []);
 
-  const dimsFiche = `${displayValue(fiche.longueur)} x ${displayValue(fiche.largeur)} x ${displayValue(fiche.hauteur)}`;
-  title.textContent = `${displayValue(ticket.dossier)} - ${displayValue(ticket.ref)}`;
+  const module = ticket.module || '';
+  title.textContent = `${displayValue(module)} - ${displayValue(ticket.dossier)}${ticket.ref && ticket.ref !== '-' ? ' / ' + displayValue(ticket.ref) : ''}`;
 
-  body.innerHTML = `
-    <div class="modal-section">
-      <h3>Informations générales</h3>
-      <div class="info-grid">
-        ${infoBox('ID ticket', ticket.id)}
-        ${infoBox('Type de demande', ticket.module)}
-        ${infoBox('Statut', ticket.status)}
-        ${infoBox('Dossier / Client', ticket.dossier)}
-        ${infoBox('Référence / N° caisse', ticket.ref)}
-        ${infoBox('Chargé de projet', ticket.chargeProjet)}
-        ${infoBox('Projet / Expo', ticket.expo || ticket.objet)}
-        ${infoBox('Prêteur', ticket.preteur)}
-        ${infoBox('Date création', ticket.createdAt ? new Date(ticket.createdAt).toLocaleString('fr-FR') : '-')}
-        ${infoBox('Date mise à jour', ticket.updatedAt ? new Date(ticket.updatedAt).toLocaleString('fr-FR') : '-')}
-        ${infoBox('Date validation', ticket.validatedAt ? new Date(ticket.validatedAt).toLocaleString('fr-FR') : '-')}
-      </div>
-    </div>
+  let html = '';
 
-    <div class="modal-section">
-      <h3>Données de la demande</h3>
-      <div class="info-grid">
-        ${infoBox('Type de caisse demandé', ticket.typeCaisse)}
-        ${infoBox('Dimensions demandées', ticket.dimensions)}
-        ${infoBox('Date emballage / rendu', ticket.dateEmballage)}
-        ${infoBox('Prix devis', ticket.prixDevis)}
-        ${infoBox('Lieu RDV', ticket.lieuRdv)}
-        ${infoBox('Date RDV', ticket.dateRdv)}
-        ${infoBox('Heure RDV', ticket.heureRdv)}
+  if(module === 'Fiche de caisse'){
+    html += `
+      <div class="modal-section">
+        <h3>Formulaire fiche de caisse</h3>
+        <div class="info-grid">
+          ${infoBox('N° dossier', ticket.dossier)}
+          ${infoBox('N° caisse', ticket.ref)}
+          ${infoBox('Prêteur', ticket.preteur)}
+          ${infoBox("Titre de l'expo", ticket.expo || ticket.objet)}
+          ${infoBox('Chargé de projet', ticket.chargeProjet)}
+          ${infoBox('Date emballage', ticket.dateEmballage)}
+          ${infoBox('Prix devis', ticket.prixDevis)}
+          ${infoBox('Type de caisse', ticket.typeCaisse)}
+          ${infoBox('Dimensions demandées', ticket.dimensions)}
+        </div>
+        <div style="height:10px"></div>
+        <div class="info-box">
+          <div class="info-label">Commentaire facultatif</div>
+          <div class="info-value">${escapeHtml(displayValue(ticket.commentaire))}</div>
+        </div>
       </div>
-      <div style="height:10px"></div>
-      <div class="info-box">
-        <div class="info-label">Commentaire</div>
-        <div class="info-value">${escapeHtml(displayValue(ticket.commentaire))}</div>
+    `;
+  } else if(module === 'Demande de devis'){
+    html += `
+      <div class="modal-section">
+        <h3>Formulaire demande de devis</h3>
+        <div class="info-grid">
+          ${infoBox('Client', ticket.dossier)}
+          ${infoBox('Chargé de projet', ticket.chargeProjet)}
+          ${infoBox('Nom du projet', ticket.expo || ticket.objet)}
+          ${infoBox('Date de rendu souhaité', ticket.dateEmballage)}
+        </div>
+        <div style="height:10px"></div>
+        <div class="info-box">
+          <div class="info-label">Description du besoin</div>
+          <div class="info-value">${escapeHtml(displayValue(ticket.commentaire))}</div>
+        </div>
       </div>
-    </div>
+    `;
+  } else if(module === 'Demande Aller voir'){
+    html += `
+      <div class="modal-section">
+        <h3>Formulaire demande Aller voir</h3>
+        <div class="info-grid">
+          ${infoBox('N° dossier / Client', ticket.dossier)}
+          ${infoBox('Chargé de projet', ticket.chargeProjet)}
+          ${infoBox('Nom du projet', ticket.expo || ticket.objet)}
+          ${infoBox('Lieu de RDV', ticket.lieuRdv)}
+          ${infoBox('Contact', ticket.contactRdv)}
+          ${infoBox('Date du RDV', ticket.dateRdv)}
+          ${infoBox('Heure du RDV', ticket.heureRdv)}
+        </div>
+        <div style="height:10px"></div>
+        <div class="info-box">
+          <div class="info-label">Description du besoin</div>
+          <div class="info-value">${escapeHtml(displayValue(ticket.commentaire))}</div>
+        </div>
+      </div>
+    `;
+  } else {
+    html += `
+      <div class="modal-section">
+        <h3>Détail du ticket</h3>
+        <div class="info-grid">
+          ${infoBox('Type de demande', ticket.module)}
+          ${infoBox('Dossier / Client', ticket.dossier)}
+          ${infoBox('Référence', ticket.ref)}
+          ${infoBox('Chargé de projet', ticket.chargeProjet)}
+          ${infoBox('Projet / Expo', ticket.expo || ticket.objet)}
+        </div>
+        <div style="height:10px"></div>
+        <div class="info-box">
+          <div class="info-label">Commentaire</div>
+          <div class="info-value">${escapeHtml(displayValue(ticket.commentaire))}</div>
+        </div>
+      </div>
+    `;
+  }
 
+  html += `
     <div class="modal-section">
-      <h3>Informations fiche renseignées par le gestionnaire</h3>
-      <div class="info-grid">
-        ${infoBox('Dimensions extérieures', fiche.dimensionsExt || dimsFiche)}
-        ${infoBox('Longueur', fiche.longueur)}
-        ${infoBox('Largeur', fiche.largeur)}
-        ${infoBox('Hauteur', fiche.hauteur)}
-        ${infoBox("Prix d'achat", euroValue(fiche.prixAchat))}
-        ${infoBox('Type caisse fiche', fiche.typeCaisseFiche)}
-        ${infoBox('Bilan carbone', fiche.bilanCarbone)}
-        ${infoBox('Poids', fiche.poids)}
-        ${infoBox('Choix caissier', fiche.choixCaissier)}
-      </div>
-    </div>
-
-    <div class="modal-section">
-      <h3>Documents demandeur</h3>
+      <h3>Documents joints à la demande</h3>
       ${fileButtons(ticket, ticket.files || [], 'download')}
-    </div>
-
-    <div class="modal-section">
-      <h3>Documents gestionnaire</h3>
-      ${fileButtons(ticket, managerSheets, 'download-sheet')}
     </div>
   `;
 
+  if(managerSheets.length){
+    html += `
+      <div class="modal-section">
+        <h3>Documents déposés par le gestionnaire</h3>
+        ${fileButtons(ticket, managerSheets, 'download-sheet')}
+      </div>
+    `;
+  }
+
+  body.innerHTML = html;
   modal.classList.add('show');
   modal.setAttribute('aria-hidden', 'false');
 }
