@@ -39,6 +39,24 @@
     .row{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
     .file-btn{border:none;background:#e0f2fe;color:#0369a1;padding:8px 12px;border-radius:12px;font-weight:700;cursor:pointer}
     .empty{padding:16px;border:1px dashed var(--line);border-radius:16px;color:var(--muted);background:#f8fafc}
+
+    .modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;padding:18px;z-index:50}
+    .modal-backdrop.show{display:flex}
+    .modal-card{background:#fff;border:1px solid var(--line);border-radius:26px;box-shadow:0 25px 80px rgba(0,0,0,.25);width:min(980px,100%);max-height:92vh;overflow:auto}
+    .modal-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;padding:22px 24px;border-bottom:1px solid var(--line)}
+    .modal-title{font-size:24px;font-weight:900;color:#0f172a}
+    .modal-body{padding:22px 24px;display:grid;gap:18px}
+    .modal-section{border:1px solid var(--line);background:#f8fafc;border-radius:20px;padding:16px}
+    .modal-section h3{font-size:15px;color:var(--blue-dark);margin:0 0 12px}
+    .info-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    .info-box{background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px}
+    .info-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#64748b;font-weight:800;margin-bottom:4px}
+    .info-value{font-size:14px;color:#0f172a;font-weight:700;word-break:break-word}
+    .modal-files{display:flex;gap:8px;flex-wrap:wrap}
+    .modal-close{border:none;background:#f1f5f9;color:#0f172a;border-radius:14px;padding:10px 14px;font-weight:900;cursor:pointer}
+    .ticket-item.clickable{cursor:pointer}
+    @media (max-width:720px){.info-grid{grid-template-columns:1fr}.modal-head,.modal-body{padding:18px}.modal-title{font-size:20px}}
+
     @media (max-width:1100px){.layout{grid-template-columns:1fr}}
     @media (max-width:720px){h1{font-size:28px}.grid,.grid.three{grid-template-columns:1fr}.hero-top,.content,.card{padding:18px}}
   </style>
@@ -192,6 +210,20 @@
     </div>
   </div>
   <div class="notice" id="notice"></div>
+
+  <div class="modal-backdrop" id="doneModal" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="doneModalTitle">
+      <div class="modal-head">
+        <div>
+          <div class="section-title" style="margin-bottom:6px">Détail du ticket terminé</div>
+          <div class="modal-title" id="doneModalTitle">Ticket</div>
+        </div>
+        <button class="modal-close" id="closeDoneModal" type="button">Fermer ×</button>
+      </div>
+      <div class="modal-body" id="doneModalBody"></div>
+    </div>
+  </div>
+
 
   
   
@@ -480,6 +512,110 @@ async function sendAllerVoir(){
   }
 }
 
+
+function displayValue(value){
+  const v = value === undefined || value === null ? '' : String(value).trim();
+  return v || '-';
+}
+function euroValue(value){
+  const v = displayValue(value);
+  if(v === '-') return '-';
+  return v.includes('€') ? v : v + ' €';
+}
+function infoBox(label, value){
+  return `<div class="info-box"><div class="info-label">${escapeHtml(label)}</div><div class="info-value">${escapeHtml(displayValue(value))}</div></div>`;
+}
+function fileButtons(ticket, files, route){
+  const valid = (files || []).filter(f => f && f.name);
+  if(!valid.length) return '<div class="small">Aucun fichier.</div>';
+  return `<div class="modal-files">${valid.map(f => {
+    const url = `/api/tickets/${encodeURIComponent(ticket.id)}/${route}/${encodeURIComponent(f.name)}`;
+    return `<button class="file-btn" type="button" onclick="window.open('${url}','_blank')">${escapeHtml(f.name)}</button>`;
+  }).join('')}</div>`;
+}
+function openDoneTicketDetails(ticket){
+  const modal = document.getElementById('doneModal');
+  const title = document.getElementById('doneModalTitle');
+  const body = document.getElementById('doneModalBody');
+  const fiche = ticket.fiche || {};
+  const managerSheets = (ticket.managerSheets && ticket.managerSheets.length)
+    ? ticket.managerSheets
+    : (ticket.managerSheet && ticket.managerSheet.name ? [ticket.managerSheet] : []);
+
+  const dimsFiche = `${displayValue(fiche.longueur)} x ${displayValue(fiche.largeur)} x ${displayValue(fiche.hauteur)}`;
+  title.textContent = `${displayValue(ticket.dossier)} - ${displayValue(ticket.ref)}`;
+
+  body.innerHTML = `
+    <div class="modal-section">
+      <h3>Informations générales</h3>
+      <div class="info-grid">
+        ${infoBox('ID ticket', ticket.id)}
+        ${infoBox('Type de demande', ticket.module)}
+        ${infoBox('Statut', ticket.status)}
+        ${infoBox('Dossier / Client', ticket.dossier)}
+        ${infoBox('Référence / N° caisse', ticket.ref)}
+        ${infoBox('Chargé de projet', ticket.chargeProjet)}
+        ${infoBox('Projet / Expo', ticket.expo || ticket.objet)}
+        ${infoBox('Prêteur', ticket.preteur)}
+        ${infoBox('Date création', ticket.createdAt ? new Date(ticket.createdAt).toLocaleString('fr-FR') : '-')}
+        ${infoBox('Date mise à jour', ticket.updatedAt ? new Date(ticket.updatedAt).toLocaleString('fr-FR') : '-')}
+        ${infoBox('Date validation', ticket.validatedAt ? new Date(ticket.validatedAt).toLocaleString('fr-FR') : '-')}
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <h3>Données de la demande</h3>
+      <div class="info-grid">
+        ${infoBox('Type de caisse demandé', ticket.typeCaisse)}
+        ${infoBox('Dimensions demandées', ticket.dimensions)}
+        ${infoBox('Date emballage / rendu', ticket.dateEmballage)}
+        ${infoBox('Prix devis', ticket.prixDevis)}
+        ${infoBox('Lieu RDV', ticket.lieuRdv)}
+        ${infoBox('Date RDV', ticket.dateRdv)}
+        ${infoBox('Heure RDV', ticket.heureRdv)}
+      </div>
+      <div style="height:10px"></div>
+      <div class="info-box">
+        <div class="info-label">Commentaire</div>
+        <div class="info-value">${escapeHtml(displayValue(ticket.commentaire))}</div>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <h3>Informations fiche renseignées par le gestionnaire</h3>
+      <div class="info-grid">
+        ${infoBox('Dimensions extérieures', fiche.dimensionsExt || dimsFiche)}
+        ${infoBox('Longueur', fiche.longueur)}
+        ${infoBox('Largeur', fiche.largeur)}
+        ${infoBox('Hauteur', fiche.hauteur)}
+        ${infoBox("Prix d'achat", euroValue(fiche.prixAchat))}
+        ${infoBox('Type caisse fiche', fiche.typeCaisseFiche)}
+        ${infoBox('Bilan carbone', fiche.bilanCarbone)}
+        ${infoBox('Poids', fiche.poids)}
+        ${infoBox('Choix caissier', fiche.choixCaissier)}
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <h3>Documents demandeur</h3>
+      ${fileButtons(ticket, ticket.files || [], 'download')}
+    </div>
+
+    <div class="modal-section">
+      <h3>Documents gestionnaire</h3>
+      ${fileButtons(ticket, managerSheets, 'download-sheet')}
+    </div>
+  `;
+
+  modal.classList.add('show');
+  modal.setAttribute('aria-hidden', 'false');
+}
+function closeDoneTicketDetails(){
+  const modal = document.getElementById('doneModal');
+  modal.classList.remove('show');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
 async function renderDoneTickets(){
   try{
     const allTickets = await readTicketsFromFolder();
@@ -505,7 +641,7 @@ async function renderDoneTickets(){
 
     for(const ticket of done){
       const item = document.createElement('div');
-      item.className = 'ticket-item';
+      item.className = 'ticket-item clickable';
 
       const fiche = ticket.fiche || {};
       const prixAchatRaw = fiche.prixAchat || '';
@@ -527,6 +663,8 @@ async function renderDoneTickets(){
           ? `<div class="done-line">Lieu : <strong>${escapeHtml(ticket.lieuRdv || '-')}</strong></div><div class="done-line">RDV : <strong>${escapeHtml((ticket.dateRdv || '-') + ' ' + (ticket.heureRdv || '-'))}</strong></div>`
           : `<div class="done-line">Dims : <strong>${escapeHtml(dimensions)}</strong></div><div class="done-line">Prix : <strong>${escapeHtml(prixAchat)}</strong></div><div class="done-line">Caissier : <strong>${escapeHtml(nomCaissier)}</strong></div>`}
       `;
+
+      item.addEventListener('click', () => openDoneTicketDetails(ticket));
 
       const actionRow = document.createElement('div');
       actionRow.className = 'done-actions';
@@ -563,6 +701,15 @@ async function renderDoneTickets(){
     els.doneList.innerHTML = '<div class="empty">Impossible de lire les tickets terminés. Clique sur Rafraîchir ou relance l’application.</div>';
   }
 }
+
+
+document.getElementById('closeDoneModal').addEventListener('click', closeDoneTicketDetails);
+document.getElementById('doneModal').addEventListener('click', (e) => {
+  if(e.target && e.target.id === 'doneModal') closeDoneTicketDetails();
+});
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Escape') closeDoneTicketDetails();
+});
 
 els.tabCaisse.addEventListener('click', ()=>{activateModule('caisse'); renderDoneTickets();});
 els.tabDevis.addEventListener('click', ()=>{activateModule('devis'); renderDoneTickets();});
