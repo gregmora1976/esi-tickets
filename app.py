@@ -31,7 +31,7 @@ def supabase_upload_bytes(storage_path, content, content_type="application/octet
         raise RuntimeError("Variables SUPABASE_URL ou SUPABASE_SERVICE_KEY manquantes")
 
     safe_path = urllib.parse.quote(storage_path, safe="/")
-    url = f"{SUPABASE_URL}/storage/v1/object{SUPABASE_BUCKET}/{safe_path}"
+    url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{safe_path}"
 
     req = urllib.request.Request(
         url,
@@ -54,7 +54,7 @@ def supabase_download_bytes(storage_path):
         raise RuntimeError("Variables SUPABASE_URL ou SUPABASE_SERVICE_KEY manquantes")
 
     safe_path = urllib.parse.quote(storage_path, safe="/")
-    url = f"{SUPABASE_URL}/storage/v1/object{SUPABASE_BUCKET}/{safe_path}"
+    url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{safe_path}"
 
     req = urllib.request.Request(
         url,
@@ -369,7 +369,16 @@ def save_ticket(ticket):
                 manager_sheets.append(legacy)
         for fs in manager_sheets:
             if fs and fs.get('name'):
-                conn.execute("INSERT INTO files(ticket_id, kind, name, size) VALUES (?,?,?,?)", (ticket.get('id'), 'gestionnaire', _as_text(fs.get('name')), fs.get('size')))
+                conn.execute(
+                    "INSERT INTO files(ticket_id, kind, name, size, path) VALUES (?,?,?,?,?)",
+                    (
+                        ticket.get('id'),
+                        'gestionnaire',
+                        _as_text(fs.get('name')),
+                        fs.get('size'),
+                        _as_text(fs.get('path'))
+                    )
+                )
         conn.commit()
 
     ticket_file(ticket['id']).write_text(json.dumps(ticket, indent=2, ensure_ascii=False), encoding='utf-8')
@@ -473,11 +482,15 @@ def api_create_ticket():
         content = fs.read()
         storage_path = f"{ticket_id}/{datetime.now().strftime('%Y%m%d%H%M%S')}_{fs.filename}"
 
-        supabase_upload_bytes(
-            storage_path,
-            content,
-            fs.content_type
-        )
+        try:
+            supabase_upload_bytes(
+                storage_path,
+                content,
+                fs.content_type
+            )
+        except Exception as e:
+            print(f"[SUPABASE UPLOAD] Erreur : {e}")
+            return jsonify({'ok': False, 'error': f'Erreur upload Supabase : {e}'}), 500
 
         ticket['files'].append({
             'name': fs.filename,
@@ -552,7 +565,7 @@ def api_manager_sheet(ticket_id):
     if not valid_files:
         return jsonify({'error': 'Fichier manquant'}), 400
 
-    folder = ticket_folder(ticket_id)
+    ticket_folder(ticket_id)  # conserve la création du dossier local historique
     manager_sheets = list(ticket.get('managerSheets') or [])
     legacy = ticket.get('managerSheet')
     if legacy and isinstance(legacy, dict) and legacy.get('name'):
@@ -560,12 +573,25 @@ def api_manager_sheet(ticket_id):
             manager_sheets.append(legacy)
 
     for fs in valid_files:
-        dest = folder / fs.filename
-        fs.save(dest)
-        size = dest.stat().st_size if dest.exists() else None
-        manager_sheets = [x for x in manager_sheets if x.get('name') != fs.filename]
-        manager_sheets.append({'name': fs.filename, 'size': size})
+        content = fs.read()
+        storage_path = f"{ticket_id}/gestionnaire/{datetime.now().strftime('%Y%m%d%H%M%S')}_{fs.filename}"
 
+        try:
+            supabase_upload_bytes(
+                storage_path,
+                content,
+                fs.content_type
+            )
+        except Exception as e:
+            print(f"[SUPABASE UPLOAD GESTIONNAIRE] Erreur : {e}")
+            return jsonify({'ok': False, 'error': f'Erreur upload Supabase : {e}'}), 500
+
+        manager_sheets = [x for x in manager_sheets if x.get('name') != fs.filename]
+        manager_sheets.append({
+            'name': fs.filename,
+            'size': len(content),
+            'path': storage_path
+        })
     ticket['managerSheets'] = manager_sheets
     ticket['updatedAt'] = datetime.now().isoformat()
     save_ticket(ticket)
@@ -606,10 +632,36 @@ def api_download_file(ticket_id, filename):
 
 @app.route('/api/tickets/<ticket_id>/download-sheet/<filename>')
 def api_download_sheet(ticket_id, filename):
-    file_path = ticket_folder(ticket_id) / filename
-    if not file_path.exists():
+    import io
+
+    ticket = load_ticket(ticket_id)
+    if not ticket:
         abort(404)
-    return send_file(file_path, as_attachment=True, download_name=filename)
+
+    file_info = None
+    for f in ticket.get('managerSheets') or []:
+        if f.get('name') == filename:
+            file_info = f
+            break
+
+    if not file_info:
+        abort(404)
+
+    storage_path = file_info.get('path')
+    if not storage_path:
+        abort(404)
+
+    try:
+        data = supabase_download_bytes(storage_path)
+    except Exception as e:
+        print(f"[SUPABASE DOWNLOAD SHEET] Erreur : {e}")
+        abort(404)
+
+    return send_file(
+        io.BytesIO(data),
+        as_attachment=True,
+        download_name=filename
+    )
 
 
 def load_ticket(ticket_id):
