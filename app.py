@@ -1,6 +1,6 @@
 from flask import Flask, render_template, jsonify, request, send_file, abort, redirect, url_for
 from pathlib import Path
-import json, threading, webbrowser, os, sqlite3, urllib.request, urllib.parse
+import json, threading, webbrowser, os, urllib.request, urllib.parse
 from datetime import datetime
 
 # Sauvegarde automatique GitHub Render
@@ -137,279 +137,276 @@ def ticket_folder(ticket_id):
     return path
 
 
-def db_connect():
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_FILE, timeout=30)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=DELETE")
-    conn.execute("PRAGMA foreign_keys=ON")
-    return conn
-
-def init_db():
-    with db_connect() as conn:
-        conn.execute("""
-        CREATE TABLE IF NOT EXISTS tickets (
-            id TEXT PRIMARY KEY,
-            module TEXT,
-            status TEXT,
-            createdAt TEXT,
-            updatedAt TEXT,
-            dossier TEXT,
-            ref TEXT,
-            preteur TEXT,
-            expo TEXT,
-            objet TEXT,
-            chargeProjet TEXT,
-            typeCaisse TEXT,
-            dimensions TEXT,
-            dateEmballage TEXT,
-            prixDevis TEXT,
-            dateRdv TEXT,
-            heureRdv TEXT,
-            lieuRdv TEXT,
-            commentaire TEXT,
-            validatedAt TEXT,
-            raw_json TEXT
-        )
-        """)
-        conn.execute("""
-        CREATE TABLE IF NOT EXISTS fiches (
-            ticket_id TEXT PRIMARY KEY,
-            longueur TEXT,
-            largeur TEXT,
-            hauteur TEXT,
-            dimensionsExt TEXT,
-            prixAchat TEXT,
-            typeCaisseFiche TEXT,
-            bilanCarbone TEXT,
-            poids TEXT,
-            choixCaissier TEXT,
-            FOREIGN KEY(ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
-        )
-        """)
-        conn.execute("""
-        CREATE TABLE IF NOT EXISTS files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ticket_id TEXT,
-            kind TEXT,
-            name TEXT,
-            size INTEGER,
-            path TEXT,
-            FOREIGN KEY(ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
-        )
-        """)
-        try:
-            conn.execute("ALTER TABLE files ADD COLUMN path TEXT")
-        except Exception:
-            pass
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_module ON tickets(module)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_dossier ON tickets(dossier)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_createdAt ON tickets(createdAt)")
-        conn.commit()
 
 def _as_text(value, default=''):
     if value is None:
         return default
     return str(value)
 
-def _ticket_from_row(row):
+
+def supabase_rest_request(method, table, query='', payload=None, prefer=None):
+    """Appelle l'API REST Supabase Database sans dépendre du SDK Python."""
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        raise RuntimeError("Variables SUPABASE_URL ou SUPABASE_SERVICE_KEY manquantes")
+
+    url = f"{SUPABASE_URL}/rest/v1/{table}"
+    if query:
+        url += "?" + query.lstrip('?')
+
+    data = None
+    headers = {
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "apikey": SUPABASE_KEY,
+        "Content-Type": "application/json",
+    }
+    if prefer:
+        headers["Prefer"] = prefer
+    elif method.upper() in ("POST", "PATCH", "DELETE"):
+        headers["Prefer"] = "return=representation"
+
+    if payload is not None:
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+
+    req = urllib.request.Request(url, data=data, method=method.upper(), headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            body = resp.read().decode("utf-8", errors="replace")
+            if not body:
+                return None
+            return json.loads(body)
+    except urllib.error.HTTPError as e:
+        try:
+            body = e.read().decode("utf-8", errors="replace")
+        except Exception:
+            body = ""
+        print(f"[SUPABASE DB ERROR] {method} {url} -> HTTP {e.code} {e.reason} {body}")
+        raise RuntimeError(f"Erreur Supabase DB HTTP {e.code}: {body or e.reason}")
+
+
+def init_db():
+    """Vérifie simplement que les tables Supabase répondent."""
+    try:
+        supabase_rest_request("GET", "tickets", "select=id&limit=1")
+        print("[SUPABASE DB] Connexion OK")
+    except Exception as e:
+        print(f"[SUPABASE DB] Connexion impossible : {e}")
+
+
+def _ticket_to_db_row(ticket):
     return {
-        'id': row['id'],
-        'module': row['module'] or '',
-        'status': row['status'] or '',
-        'createdAt': row['createdAt'] or '',
-        'updatedAt': row['updatedAt'] or '',
-        'dossier': row['dossier'] or '',
-        'ref': row['ref'] or '',
-        'preteur': row['preteur'] or '-',
-        'expo': row['expo'] or '-',
-        'objet': row['objet'] or '-',
-        'chargeProjet': row['chargeProjet'] or '-',
-        'typeCaisse': row['typeCaisse'] or '-',
-        'dimensions': row['dimensions'] or '-',
-        'dateEmballage': row['dateEmballage'] or '-',
-        'prixDevis': row['prixDevis'] or '-',
-        'dateRdv': row['dateRdv'] or '-',
-        'heureRdv': row['heureRdv'] or '-',
-        'lieuRdv': row['lieuRdv'] or '-',
-        'commentaire': row['commentaire'] or '',
-        'validatedAt': row['validatedAt'] or ''
+        "id": _as_text(ticket.get("id")),
+        "module": _as_text(ticket.get("module")),
+        "status": _as_text(ticket.get("status")),
+        "created_at": _as_text(ticket.get("createdAt")),
+        "updated_at": _as_text(ticket.get("updatedAt")),
+        "dossier": _as_text(ticket.get("dossier")),
+        "ref": _as_text(ticket.get("ref")),
+        "preteur": _as_text(ticket.get("preteur")),
+        "expo": _as_text(ticket.get("expo")),
+        "objet": _as_text(ticket.get("objet")),
+        "charge_projet": _as_text(ticket.get("chargeProjet")),
+        "type_caisse": _as_text(ticket.get("typeCaisse")),
+        "dimensions": _as_text(ticket.get("dimensions")),
+        "date_emballage": _as_text(ticket.get("dateEmballage")),
+        "prix_devis": _as_text(ticket.get("prixDevis")),
+        "date_rdv": _as_text(ticket.get("dateRdv")),
+        "heure_rdv": _as_text(ticket.get("heureRdv")),
+        "lieu_rdv": _as_text(ticket.get("lieuRdv")),
+        "commentaire": _as_text(ticket.get("commentaire")),
+        "validated_at": _as_text(ticket.get("validatedAt")),
+        "raw_json": ticket,
     }
 
-def _attach_children(conn, ticket):
-    fiche = conn.execute("SELECT * FROM fiches WHERE ticket_id=?", (ticket['id'],)).fetchone()
-    if fiche:
-        ticket['fiche'] = {
-            'longueur': fiche['longueur'] or '',
-            'largeur': fiche['largeur'] or '',
-            'hauteur': fiche['hauteur'] or '',
-            'dimensionsExt': fiche['dimensionsExt'] or '',
-            'prixAchat': fiche['prixAchat'] or '',
-            'typeCaisseFiche': fiche['typeCaisseFiche'] or '',
-            'bilanCarbone': fiche['bilanCarbone'] or '',
-            'poids': fiche['poids'] or '',
-            'choixCaissier': fiche['choixCaissier'] or ''
-        }
 
-    ticket['files'] = []
-    ticket['managerSheets'] = []
-    rows = conn.execute("SELECT kind, name, size, path FROM files WHERE ticket_id=? ORDER BY id", (ticket['id'],)).fetchall()
+def _ticket_from_db_row(row):
+    return {
+        "id": row.get("id") or "",
+        "module": row.get("module") or "",
+        "status": row.get("status") or "",
+        "createdAt": row.get("created_at") or "",
+        "updatedAt": row.get("updated_at") or "",
+        "dossier": row.get("dossier") or "",
+        "ref": row.get("ref") or "",
+        "preteur": row.get("preteur") or "-",
+        "expo": row.get("expo") or "-",
+        "objet": row.get("objet") or "-",
+        "chargeProjet": row.get("charge_projet") or "-",
+        "typeCaisse": row.get("type_caisse") or "-",
+        "dimensions": row.get("dimensions") or "-",
+        "dateEmballage": row.get("date_emballage") or "-",
+        "prixDevis": row.get("prix_devis") or "-",
+        "dateRdv": row.get("date_rdv") or "-",
+        "heureRdv": row.get("heure_rdv") or "-",
+        "lieuRdv": row.get("lieu_rdv") or "-",
+        "commentaire": row.get("commentaire") or "",
+        "validatedAt": row.get("validated_at") or "",
+    }
+
+
+def _fiche_to_db_row(ticket_id, fiche):
+    return {
+        "ticket_id": ticket_id,
+        "longueur": _as_text(fiche.get("longueur")),
+        "largeur": _as_text(fiche.get("largeur")),
+        "hauteur": _as_text(fiche.get("hauteur")),
+        "dimensions_ext": _as_text(fiche.get("dimensionsExt")),
+        "prix_achat": _as_text(fiche.get("prixAchat")),
+        "type_caisse_fiche": _as_text(fiche.get("typeCaisseFiche")),
+        "bilan_carbone": _as_text(fiche.get("bilanCarbone")),
+        "poids": _as_text(fiche.get("poids")),
+        "choix_caissier": _as_text(fiche.get("choixCaissier")),
+    }
+
+
+def _fiche_from_db_row(row):
+    return {
+        "longueur": row.get("longueur") or "",
+        "largeur": row.get("largeur") or "",
+        "hauteur": row.get("hauteur") or "",
+        "dimensionsExt": row.get("dimensions_ext") or "",
+        "prixAchat": row.get("prix_achat") or "",
+        "typeCaisseFiche": row.get("type_caisse_fiche") or "",
+        "bilanCarbone": row.get("bilan_carbone") or "",
+        "poids": row.get("poids") or "",
+        "choixCaissier": row.get("choix_caissier") or "",
+    }
+
+
+def _attach_children(ticket):
+    tid = ticket.get("id")
+    if not tid:
+        return ticket
+
+    safe_tid = urllib.parse.quote(tid, safe='')
+
+    fiches = supabase_rest_request(
+        "GET",
+        "fiches",
+        f"select=*&ticket_id=eq.{safe_tid}&limit=1"
+    ) or []
+    if fiches:
+        ticket["fiche"] = _fiche_from_db_row(fiches[0])
+
+    rows = supabase_rest_request(
+        "GET",
+        "ticket_files",
+        f"select=*&ticket_id=eq.{safe_tid}&order=uploaded_at.asc"
+    ) or []
+
+    ticket["files"] = []
+    ticket["managerSheets"] = []
     for f in rows:
-        item = {'name': f['name'] or '', 'size': f['size'], 'path': f['path'] or ''}
-        if f['kind'] == 'gestionnaire':
-            ticket['managerSheets'].append(item)
+        item = {
+            "name": f.get("filename") or "",
+            "size": f.get("size") or 0,
+            "path": f.get("storage_path") or ""
+        }
+        if f.get("kind") == "gestionnaire":
+            ticket["managerSheets"].append(item)
         else:
-            ticket['files'].append(item)
+            ticket["files"].append(item)
+
     return ticket
 
-def _read_json_tickets():
-    out = []
-    for path in tickets_dir().glob('*.json'):
-        try:
-            out.append(json.loads(path.read_text(encoding='utf-8')))
-        except Exception:
-            pass
-    out.sort(key=lambda x: str(x.get('createdAt','')), reverse=True)
-    return out
 
 def list_tickets():
-    init_db()
-
-    merged = {}
-
-    # Tickets SQLite
-    try:
-        with db_connect() as conn:
-            rows = conn.execute("SELECT * FROM tickets ORDER BY createdAt DESC").fetchall()
-            for row in rows:
-                ticket = _attach_children(conn, _ticket_from_row(row))
-                if ticket.get('id'):
-                    merged[ticket['id']] = ticket
-    except Exception:
-        pass
-
-    # Tickets JSON non présents en base
-    for ticket in _read_json_tickets():
-        tid = ticket.get('id')
-        if tid and tid not in merged:
-            merged[tid] = ticket
-
-    tickets = list(merged.values())
-    tickets.sort(key=lambda x: str(x.get('createdAt', '')), reverse=True)
-
+    rows = supabase_rest_request("GET", "tickets", "select=*&order=created_at.desc") or []
+    tickets = []
+    for row in rows:
+        tickets.append(_attach_children(_ticket_from_db_row(row)))
     return tickets
 
+
 def next_id(prefix):
-    init_db()
+    safe_prefix = urllib.parse.quote(prefix + '-*', safe='*-')
+    rows = supabase_rest_request(
+        "GET",
+        "tickets",
+        f"select=id&id=like.{safe_prefix}&order=id.desc&limit=5000"
+    ) or []
     nums = []
-    try:
-        with db_connect() as conn:
-            rows = conn.execute("SELECT id FROM tickets WHERE id LIKE ?", (prefix + '-%',)).fetchall()
-            for row in rows:
-                try:
-                    nums.append(int(str(row['id']).split('-')[1]))
-                except Exception:
-                    pass
-    except Exception:
-        pass
-    for t in _read_json_tickets():
-        tid = str(t.get('id',''))
-        if tid.startswith(prefix + '-'):
-            try:
-                nums.append(int(tid.split('-')[1]))
-            except Exception:
-                pass
+    for row in rows:
+        try:
+            nums.append(int(str(row.get("id", "")).split('-')[1]))
+        except Exception:
+            pass
     mx = max(nums) if nums else 0
     return f"{prefix}-{mx+1:03d}"
 
+
 def save_ticket(ticket):
-    init_db()
-    with db_connect() as conn:
-        conn.execute("""
-        INSERT OR REPLACE INTO tickets (
-            id, module, status, createdAt, updatedAt, dossier, ref, preteur,
-            expo, objet, chargeProjet, typeCaisse, dimensions, dateEmballage,
-            prixDevis, dateRdv, heureRdv, lieuRdv, commentaire, validatedAt, raw_json
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        """, (
-            _as_text(ticket.get('id')),
-            _as_text(ticket.get('module')),
-            _as_text(ticket.get('status')),
-            _as_text(ticket.get('createdAt')),
-            _as_text(ticket.get('updatedAt')),
-            _as_text(ticket.get('dossier')),
-            _as_text(ticket.get('ref')),
-            _as_text(ticket.get('preteur')),
-            _as_text(ticket.get('expo')),
-            _as_text(ticket.get('objet')),
-            _as_text(ticket.get('chargeProjet')),
-            _as_text(ticket.get('typeCaisse')),
-            _as_text(ticket.get('dimensions')),
-            _as_text(ticket.get('dateEmballage')),
-            _as_text(ticket.get('prixDevis')),
-            _as_text(ticket.get('dateRdv')),
-            _as_text(ticket.get('heureRdv')),
-            _as_text(ticket.get('lieuRdv')),
-            _as_text(ticket.get('commentaire')),
-            _as_text(ticket.get('validatedAt')),
-            json.dumps(ticket, ensure_ascii=False)
-        ))
+    if not ticket.get("id"):
+        raise RuntimeError("Ticket sans ID")
 
-        fiche = ticket.get('fiche') or {}
-        if fiche:
-            conn.execute("""
-            INSERT OR REPLACE INTO fiches (
-                ticket_id, longueur, largeur, hauteur, dimensionsExt, prixAchat,
-                typeCaisseFiche, bilanCarbone, poids, choixCaissier
-            ) VALUES (?,?,?,?,?,?,?,?,?,?)
-            """, (
-                ticket.get('id'),
-                _as_text(fiche.get('longueur')),
-                _as_text(fiche.get('largeur')),
-                _as_text(fiche.get('hauteur')),
-                _as_text(fiche.get('dimensionsExt')),
-                _as_text(fiche.get('prixAchat')),
-                _as_text(fiche.get('typeCaisseFiche')),
-                _as_text(fiche.get('bilanCarbone')),
-                _as_text(fiche.get('poids')),
-                _as_text(fiche.get('choixCaissier')),
-            ))
-        else:
-            conn.execute("DELETE FROM fiches WHERE ticket_id=?", (ticket.get('id'),))
+    ticket.setdefault("updatedAt", datetime.now().isoformat())
 
-        conn.execute("DELETE FROM files WHERE ticket_id=?", (ticket.get('id'),))
-        for fs in ticket.get('files') or []:
-            if fs and fs.get('name'):
-                conn.execute("INSERT INTO files(ticket_id, kind, name, size, path) VALUES (?,?,?,?,?)", (ticket.get('id'), 'demandeur', _as_text(fs.get('name')), fs.get('size'), _as_text(fs.get('path'))))
+    # Upsert du ticket principal
+    supabase_rest_request(
+        "POST",
+        "tickets",
+        "on_conflict=id",
+        [_ticket_to_db_row(ticket)],
+        prefer="resolution=merge-duplicates,return=minimal"
+    )
 
-        manager_sheets = list(ticket.get('managerSheets') or [])
-        legacy = ticket.get('managerSheet')
-        if legacy and isinstance(legacy, dict) and legacy.get('name'):
-            if not any(x.get('name') == legacy.get('name') for x in manager_sheets):
-                manager_sheets.append(legacy)
-        for fs in manager_sheets:
-            if fs and fs.get('name'):
-                conn.execute(
-                    "INSERT INTO files(ticket_id, kind, name, size, path) VALUES (?,?,?,?,?)",
-                    (
-                        ticket.get('id'),
-                        'gestionnaire',
-                        _as_text(fs.get('name')),
-                        fs.get('size'),
-                        _as_text(fs.get('path'))
-                    )
-                )
-        conn.commit()
+    ticket_id = ticket.get("id")
+    safe_tid = urllib.parse.quote(ticket_id, safe='')
 
-    ticket_file(ticket['id']).write_text(json.dumps(ticket, indent=2, ensure_ascii=False), encoding='utf-8')
+    # Fiche gestionnaire
+    fiche = ticket.get("fiche") or {}
+    if fiche:
+        supabase_rest_request(
+            "POST",
+            "fiches",
+            "on_conflict=ticket_id",
+            [_fiche_to_db_row(ticket_id, fiche)],
+            prefer="resolution=merge-duplicates,return=minimal"
+        )
+    else:
+        supabase_rest_request("DELETE", "fiches", f"ticket_id=eq.{safe_tid}", prefer="return=minimal")
 
-    if backup_to_github is not None:
-        try:
-            backup_to_github()
-            print("[BACKUP] Sauvegarde immédiate après modification ticket")
-        except Exception as e:
-            print(f"[BACKUP] Erreur sauvegarde immédiate : {e}")
+    # Fichiers : on remplace la liste associée au ticket
+    supabase_rest_request("DELETE", "ticket_files", f"ticket_id=eq.{safe_tid}", prefer="return=minimal")
+
+    file_rows = []
+    for fs in ticket.get("files") or []:
+        if fs and fs.get("name"):
+            file_rows.append({
+                "ticket_id": ticket_id,
+                "kind": "demandeur",
+                "filename": _as_text(fs.get("name")),
+                "size": fs.get("size") or 0,
+                "storage_path": _as_text(fs.get("path")),
+            })
+
+    manager_sheets = list(ticket.get("managerSheets") or [])
+    legacy = ticket.get("managerSheet")
+    if legacy and isinstance(legacy, dict) and legacy.get("name"):
+        if not any(x.get("name") == legacy.get("name") for x in manager_sheets):
+            manager_sheets.append(legacy)
+
+    for fs in manager_sheets:
+        if fs and fs.get("name"):
+            file_rows.append({
+                "ticket_id": ticket_id,
+                "kind": "gestionnaire",
+                "filename": _as_text(fs.get("name")),
+                "size": fs.get("size") or 0,
+                "storage_path": _as_text(fs.get("path")),
+            })
+
+    if file_rows:
+        supabase_rest_request("POST", "ticket_files", "", file_rows, prefer="return=minimal")
+
+    print("[SUPABASE DB] Ticket sauvegardé", ticket_id)
+
+
+def load_ticket(ticket_id):
+    safe_tid = urllib.parse.quote(ticket_id, safe='')
+    rows = supabase_rest_request("GET", "tickets", f"select=*&id=eq.{safe_tid}&limit=1") or []
+    if not rows:
+        return None
+    return _attach_children(_ticket_from_db_row(rows[0]))
 
 @app.route('/')
 def index():
@@ -1039,36 +1036,16 @@ END:VCALENDAR"""
     return Response(ics, mimetype='text/calendar')
 
 
-print("[BACKUP] Scheduler appelé au démarrage Render")
+
 def start_github_backup_scheduler():
-    print("[BACKUP] Fonction start_github_backup_scheduler lancée")
-    if backup_to_github is None:
-        return
-
-    def loop():
-        import time
-        time.sleep(120)
-        while True:
-            try:
-                backup_to_github()
-            except Exception as e:
-                print(f"[BACKUP] Erreur planification : {e}")
-            time.sleep(300)
-
-    t = threading.Thread(target=loop, daemon=True)
-    t.start()
+    # Les tickets ne sont plus sauvegardés dans GitHub : Supabase Database est la source fiable.
+    print("[BACKUP] Désactivé : stockage principal Supabase Database")
 
 
 def open_browser():
     webbrowser.open('http://127.0.0.1:5050/splash')
+
 ensure_shared_root()
-
-if restore_from_github_if_needed is not None and not DB_FILE.exists():
-    print("[RESTORE] Base absente -> restauration GitHub")
-    restore_from_github_if_needed()
-else:
-    print("[RESTORE] Base locale déjà présente -> pas de restauration")
-
 init_db()
 start_github_backup_scheduler()
 if __name__ == '__main__':
