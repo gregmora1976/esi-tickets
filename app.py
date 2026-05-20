@@ -25,6 +25,15 @@ SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "uploads")
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
+def safe_filename(name):
+    """Nettoie le nom du fichier pour Supabase tout en gardant le vrai nom affiché côté appli."""
+    name = str(name or "fichier")
+    return "".join(
+        c if c.isalnum() or c in "._-" else "_"
+        for c in name
+    )
+
+
 def supabase_upload_bytes(storage_path, content, content_type="application/octet-stream"):
     """Envoie un fichier dans Supabase Storage sans dépendre du SDK Python."""
     if not SUPABASE_URL or not SUPABASE_KEY:
@@ -395,6 +404,13 @@ def save_ticket(ticket):
 
     ticket_file(ticket['id']).write_text(json.dumps(ticket, indent=2, ensure_ascii=False), encoding='utf-8')
 
+    if backup_to_github is not None:
+        try:
+            backup_to_github()
+            print("[BACKUP] Sauvegarde immédiate après modification ticket")
+        except Exception as e:
+            print(f"[BACKUP] Erreur sauvegarde immédiate : {e}")
+
 @app.route('/')
 def index():
     return redirect(url_for('demandeur'))
@@ -492,7 +508,8 @@ def api_create_ticket():
             continue
 
         content = fs.read()
-        storage_path = f"{ticket_id}/{datetime.now().strftime('%Y%m%d%H%M%S')}_{fs.filename}"
+        clean_name = safe_filename(fs.filename)
+        storage_path = f"{ticket_id}/{datetime.now().strftime('%Y%m%d%H%M%S')}_{clean_name}"
 
         try:
             supabase_upload_bytes(
@@ -586,7 +603,8 @@ def api_manager_sheet(ticket_id):
 
     for fs in valid_files:
         content = fs.read()
-        storage_path = f"{ticket_id}/gestionnaire/{datetime.now().strftime('%Y%m%d%H%M%S')}_{fs.filename}"
+        clean_name = safe_filename(fs.filename)
+        storage_path = f"{ticket_id}/gestionnaire/{datetime.now().strftime('%Y%m%d%H%M%S')}_{clean_name}"
 
         try:
             supabase_upload_bytes(
