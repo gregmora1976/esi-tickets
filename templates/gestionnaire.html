@@ -172,7 +172,8 @@
     </div>
     <div class="info-grid">
       <div class="field"><label>Longueur</label><input class="input" id="fiche-longueur" /></div><div class="field"><label>Largeur</label><input class="input" id="fiche-largeur" /></div><div class="field"><label>Hauteur</label><input class="input" id="fiche-hauteur" /></div>
-      <div class="field"><label>Prix d'achat</label><input class="input" id="fiche-prix-achat" /></div>
+      <div class="field"><label>Prix d'achat</label><input class="input" id="fiche-prix-achat" placeholder="125 €" /></div>
+      <div class="field"><label>Prix cession</label><input class="input" id="fiche-prix-cession" placeholder="250 €" /></div>
       <div class="field"><label>Type de caisse</label><input class="input" id="fiche-type-caisse" /></div>
       <div class="field"><label>Bilan carbone</label><input class="input" id="fiche-bilan-carbone" /></div>
       <div class="field"><label>Poids</label><input class="input" id="fiche-poids" /></div>
@@ -244,6 +245,7 @@ const ficheFields = {
   largeur: document.getElementById('fiche-largeur'),
   hauteur: document.getElementById('fiche-hauteur'),
   prixAchat: document.getElementById('fiche-prix-achat'),
+  prixCession: document.getElementById('fiche-prix-cession'),
   typeCaisseFiche: document.getElementById('fiche-type-caisse'),
   bilanCarbone: document.getElementById('fiche-bilan-carbone'),
   poids: document.getElementById('fiche-poids'),
@@ -260,6 +262,7 @@ async function openFicheModal(){
     ficheFields.largeur.value = data.largeur || '';
     ficheFields.hauteur.value = data.hauteur || '';
     ficheFields.prixAchat.value = data.prixAchat || '';
+    ficheFields.prixCession.value = data.prixCession || '';
     ficheFields.typeCaisseFiche.value = data.typeCaisseFiche || '';
     ficheFields.bilanCarbone.value = data.bilanCarbone || '';
     ficheFields.poids.value = data.poids || '';
@@ -282,6 +285,7 @@ async function saveFicheModal(){
     largeur: ficheFields.largeur.value.trim(),
     hauteur: ficheFields.hauteur.value.trim(),
     prixAchat: (ficheFields.prixAchat.value.trim() && !ficheFields.prixAchat.value.includes('€')) ? ficheFields.prixAchat.value.trim()+' €' : ficheFields.prixAchat.value.trim(),
+    prixCession: (ficheFields.prixCession.value.trim() && !ficheFields.prixCession.value.includes('€')) ? ficheFields.prixCession.value.trim()+' €' : ficheFields.prixCession.value.trim(),
     typeCaisseFiche: ficheFields.typeCaisseFiche.value.trim(),
     bilanCarbone: ficheFields.bilanCarbone.value.trim(),
     poids: ficheFields.poids.value.trim(),
@@ -474,7 +478,7 @@ async function renderDetail(){
       ['Titre expo', canEdit ? input('edit-expo', ticket.expo || ticket.objet || '') : escapeHtml(ticket.expo||ticket.objet||'-')],
       ['Type de caisse', canEdit ? input('edit-typeCaisse', ticket.typeCaisse || '') : escapeHtml(ticket.typeCaisse||'-')],
       ['Dimensions œuvre', canEdit ? input('edit-dimensions', ticket.dimensions || '') : escapeHtml(ticket.dimensions||'-')],
-      ['Date emballage', canEdit ? input('edit-dateEmballage', ticket.dateEmballage || '', 'date') : escapeHtml(formatDateSimpleFR(ticket.dateEmballage))],
+      ['Date mise à dispo', canEdit ? input('edit-dateEmballage', ticket.dateEmballage || '', 'date') : escapeHtml(formatDateSimpleFR(ticket.dateEmballage))],
       ['Prix devis', canEdit ? input('edit-prixDevis', ticket.prixDevis || '') : escapeHtml((ticket.prixDevis && !String(ticket.prixDevis).includes('€')) ? ticket.prixDevis+' €' : ticket.prixDevis||'-')],
       ['Commentaire', commentValue],
       ['Date création', escapeHtml(ticket.createdAt?fmtDateFR(ticket.createdAt):'-')]

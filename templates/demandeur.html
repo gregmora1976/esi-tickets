@@ -107,7 +107,7 @@
                 <div class="field"><label>Prêteur</label><input class="input" id="caisse-preteur" /></div>
                 <div class="field"><label>Titre de l'expo</label><input class="input" id="caisse-expo" /></div>
 <div class="field"><label>Chargé de projet</label><input class="input" id="caisse-charge-projet" /></div>
-                <div class="field"><label>Date emballage</label><input class="input" id="caisse-date-emballage" type="date" /></div>
+                <div class="field"><label>Date mise à dispo</label><input class="input" id="caisse-date-emballage" type="date" /></div>
                 <div class="field"><label>Prix devis</label><input class="input" id="caisse-prix-devis" placeholder="ex. 1250 €" /></div>
                 <div class="field" style="grid-column:1 / -1;"><label>Type de caisse</label><input class="input" id="caisse-type" /></div>
               </div>
@@ -557,7 +557,7 @@ function openDoneTicketDetails(ticket){
           ${infoBox('Prêteur', ticket.preteur)}
           ${infoBox("Titre de l'expo", ticket.expo || ticket.objet)}
           ${infoBox('Chargé de projet', ticket.chargeProjet)}
-          ${infoBox('Date emballage', ticket.dateEmballage)}
+          ${infoBox('Date mise à dispo', ticket.dateEmballage)}
           ${infoBox('Prix devis', ticket.prixDevis)}
           ${infoBox('Type de caisse', ticket.typeCaisse)}
           ${infoBox('Dimensions demandées', ticket.dimensions)}
