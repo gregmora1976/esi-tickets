@@ -774,6 +774,7 @@ def api_save_fiche(ticket_id):
         'hauteur': hauteur,
         'dimensionsExt': dimensions_ext,
         'prixAchat': data.get('prixAchat', ''),
+        'prixCession': data.get('prixCession', ''),
         'typeCaisseFiche': data.get('typeCaisseFiche', ''),
         'bilanCarbone': data.get('bilanCarbone', ''),
         'poids': data.get('poids', ''),
