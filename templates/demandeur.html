@@ -91,7 +91,7 @@
           </div>
           <div class="actions" style="justify-content:flex-end">
             <button class="btn secondary" id="openManager" type="button">Ouvrir le portail gestionnaire</button>
-  <button class="btn secondary" id="restartApp" type="button">Relancer l'appli</button>
+  <button class="btn secondary" id="planningCaisserie" type="button">Planning caisserie</button>
           </div>
         </div>
 
@@ -758,9 +758,8 @@ document.getElementById('sendDevis').addEventListener('click', sendDevis);
 document.getElementById('sendAllerVoir').addEventListener('click', sendAllerVoir);
 document.getElementById('sendAllerVoir').addEventListener('click', sendAllerVoir);
 document.getElementById('openManager').addEventListener('click', ()=>window.open('/login','_blank'));
-document.getElementById('restartApp').addEventListener('click', () => {
-  alert("L'application va se fermer.\nRelancez-la avec votre raccourci.");
-  setTimeout(() => { fetch('/api/restart').catch(()=>{}); }, 300);
+document.getElementById('planningCaisserie').addEventListener('click', () => {
+  window.open('/reception', '_blank');
 });
 document.getElementById('refreshDone').addEventListener('click', renderDoneTickets);
 document.getElementById('doneSearch').addEventListener('input', e=>{state.doneSearch=e.target.value;renderDoneTickets();});
