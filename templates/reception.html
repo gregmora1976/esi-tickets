@@ -64,6 +64,14 @@ body{
   border-color:var(--blue);
   color:#fff;
 }
+.search{
+  border:1px solid var(--line);
+  background:#f8fafc;
+  border-radius:12px;
+  padding:10px 13px;
+  font-size:14px;
+  min-width:260px;
+}
 .month-label{
   font-size:18px;
   font-weight:900;
@@ -178,6 +186,7 @@ body{
     <div class="month-label" id="monthLabel"></div>
     <button class="btn" id="nextMonth" type="button">Mois suivant ›</button>
     <button class="btn primary" id="todayBtn" type="button">Aujourd'hui</button>
+    <input class="search" id="searchInput" type="search" placeholder="Rechercher un ticket..." />
     <button class="btn" id="refreshBtn" type="button">Rafraîchir</button>
   </div>
 </div>
@@ -202,6 +211,7 @@ body{
 <script>
 let currentDate = new Date();
 let tickets = [];
+let searchTerm = '';
 
 function pad(n){ return String(n).padStart(2,'0'); }
 function isoDate(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
@@ -231,6 +241,30 @@ function displayTicket(t){
   const ref = t.ref || '-';
   return `${dossier} - ${ref}`;
 }
+function eventText(t){
+  const fiche = t.fiche || {};
+  const dimensions =
+    `${fiche.longueur || '-'}x${fiche.largeur || '-'}x${fiche.hauteur || '-'}`;
+  const caissierNom = fiche.choixCaissier || '-';
+  const chargeProjet = t.chargeProjet || '-';
+  return `${t.dossier || '-'}-${t.ref || '-'} / ${dimensions} / ${caissierNom} / ${chargeProjet}`;
+}
+function matchesSearch(t){
+  if(!searchTerm) return true;
+  const fiche = t.fiche || {};
+  const haystack = [
+    t.dossier,
+    t.ref,
+    t.chargeProjet,
+    fiche.longueur,
+    fiche.largeur,
+    fiche.hauteur,
+    fiche.choixCaissier,
+    eventText(t)
+  ].join(' ').toLowerCase();
+
+  return haystack.includes(searchTerm.toLowerCase());
+}
 function groupTickets(){
   const grouped = {};
   tickets
@@ -238,7 +272,8 @@ function groupTickets(){
       t.module === 'Fiche de caisse' &&
       t.status === 'Terminé' &&
       t.dateEmballage &&
-      t.dateEmballage !== '-'
+      t.dateEmballage !== '-' &&
+      matchesSearch(t)
     )
     .forEach(t => {
       if(!grouped[t.dateEmballage]) grouped[t.dateEmballage] = [];
@@ -295,8 +330,7 @@ function renderCalendar(){
           const caissierNom = fiche.choixCaissier || '-';
           const caissier = caissierNom.toLowerCase();
 
-          event.textContent =
-            `${t.dossier || '-'}-${t.ref || '-'} / ${dimensions} / ${caissierNom}`;
+          event.textContent = eventText(t);
 
           event.title = event.textContent;
 
@@ -332,6 +366,10 @@ document.getElementById('todayBtn').addEventListener('click',()=>{
   renderCalendar();
 });
 document.getElementById('refreshBtn').addEventListener('click', loadTickets);
+document.getElementById('searchInput').addEventListener('input', (e)=>{
+  searchTerm = e.target.value.trim();
+  renderCalendar();
+});
 
 loadTickets();
 setInterval(loadTickets, 30000);
