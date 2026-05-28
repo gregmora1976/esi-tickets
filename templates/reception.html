@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>ESI - Réception</title>
+<style>
+body{font-family:Arial;background:#f1f5f9;padding:24px}
+.day{background:#fff;border-radius:18px;padding:18px;margin-bottom:18px;border:1px solid #dbe7f0}
+.ticket{background:#e0f2fe;padding:10px 14px;border-radius:12px;margin-top:8px;font-weight:700}
+</style>
+</head>
+<body>
+<h1>Planning Réception</h1>
+<div id="planning"></div>
+<script>
+async function load(){
+ const res = await fetch('/api/tickets');
+ const tickets = await res.json();
+
+ const filtered = tickets.filter(t =>
+   t.module === 'Fiche de caisse' &&
+   t.status === 'Terminé' &&
+   t.dateEmballage &&
+   t.dateEmballage !== '-'
+ );
+
+ const grouped = {};
+
+ filtered.forEach(t=>{
+   if(!grouped[t.dateEmballage]) grouped[t.dateEmballage]=[];
+   grouped[t.dateEmballage].push(t);
+ });
+
+ const planning = document.getElementById('planning');
+
+ Object.keys(grouped).sort().forEach(date=>{
+   const block = document.createElement('div');
+   block.className='day';
+   block.innerHTML = `<h2>${date}</h2>`;
+
+   grouped[date].forEach(t=>{
+      const item = document.createElement('div');
+      item.className='ticket';
+      item.textContent = `${t.dossier}-${t.ref}`;
+      block.appendChild(item);
+   });
+
+   planning.appendChild(block);
+ });
+}
+load();
+</script>
+</body>
+</html>
