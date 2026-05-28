@@ -286,8 +286,30 @@ function renderCalendar(){
           const event = document.createElement('button');
           event.className = 'event';
           event.type = 'button';
-          event.textContent = displayTicket(t);
-          event.title = displayTicket(t);
+
+          const fiche = t.fiche || {};
+
+          const dimensions =
+            `${fiche.longueur || '-'}x${fiche.largeur || '-'}x${fiche.hauteur || '-'}`;
+
+          const caissierNom = fiche.choixCaissier || '-';
+          const caissier = caissierNom.toLowerCase();
+
+          event.textContent =
+            `${t.dossier || '-'}-${t.ref || '-'} / ${dimensions} / ${caissierNom}`;
+
+          event.title = event.textContent;
+
+          if(caissier.includes('secobois')){
+            event.style.background = '#fed7aa';
+            event.style.borderLeft = '5px solid #ea580c';
+          }
+
+          if(caissier.includes('arckx')){
+            event.style.background = '#bbf7d0';
+            event.style.borderLeft = '5px solid #15803d';
+          }
+
           event.addEventListener('click',()=>alert(displayTicket(t)));
           day.appendChild(event);
         });
