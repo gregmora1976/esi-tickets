@@ -271,6 +271,7 @@ def _fiche_to_db_row(ticket_id, fiche):
         "hauteur": _as_text(fiche.get("hauteur")),
         "dimensions_ext": _as_text(fiche.get("dimensionsExt")),
         "prix_achat": _as_text(fiche.get("prixAchat")),
+        "prix_cession": _as_text(fiche.get("prixCession")),
         "type_caisse_fiche": _as_text(fiche.get("typeCaisseFiche")),
         "bilan_carbone": _as_text(fiche.get("bilanCarbone")),
         "poids": _as_text(fiche.get("poids")),
@@ -285,6 +286,7 @@ def _fiche_from_db_row(row):
         "hauteur": row.get("hauteur") or "",
         "dimensionsExt": row.get("dimensions_ext") or "",
         "prixAchat": row.get("prix_achat") or "",
+        "prixCession": row.get("prix_cession") or "",
         "typeCaisseFiche": row.get("type_caisse_fiche") or "",
         "bilanCarbone": row.get("bilan_carbone") or "",
         "poids": row.get("poids") or "",
@@ -530,6 +532,11 @@ button{margin-top:14px;width:100%;padding:12px 14px;border:none;border-radius:14
   </form>
 </body>
 </html>""", error=error)
+
+
+@app.route('/reception')
+def reception():
+    return render_template('reception.html')
 
 @app.route('/api/status')
 def api_status():
