@@ -790,6 +790,7 @@ def api_export_excel():
     try:
         from openpyxl import Workbook
         import io
+        import re
     except Exception:
         return jsonify({'error': "openpyxl non installé"}), 500
 
@@ -803,9 +804,25 @@ def api_export_excel():
         "ID","Module","Statut","Date création","Dossier / Client",
         "Réf / N° caisse","Chargé de projet","Projet / Expo",
         "Type de caisse","Dimensions","Prix devis",
-        "Prix d'achat","Commentaire","Choix du caissier",
+        "Prix d'achat","Prix cession","Commentaire","Choix du caissier",
         "Date RDV","Heure RDV","Lieu RDV"
     ])
+
+    def parse_euro(value):
+        if value is None:
+            return None
+        txt = str(value).strip()
+        if not txt or txt == '-':
+            return None
+        txt = txt.replace('\xa0', ' ').replace('€', '').replace(' ', '')
+        txt = txt.replace(',', '.')
+        txt = re.sub(r'[^0-9.\-]', '', txt)
+        if not txt:
+            return None
+        try:
+            return float(txt)
+        except Exception:
+            return None
 
     for t in tickets:
         fiche = t.get('fiche', {}) or {}
@@ -820,14 +837,19 @@ def api_export_excel():
             t.get('expo') or t.get('objet',''),
             t.get('typeCaisse',''),
             t.get('dimensions',''),
-            t.get('prixDevis',''),
-            fiche.get('prixAchat',''),
+            parse_euro(t.get('prixDevis','')),
+            parse_euro(fiche.get('prixAchat','')),
+            parse_euro(fiche.get('prixCession','')),
             t.get('commentaire',''),
             fiche.get('choixCaissier',''),
             t.get('dateRdv',''),
             t.get('heureRdv',''),
             t.get('lieuRdv','')
         ])
+
+    for row in range(2, ws.max_row + 1):
+        for col in [11, 12, 13]:
+            ws.cell(row=row, column=col).number_format = '#,##0.00 €'
 
     output = io.BytesIO()
     wb.save(output)
