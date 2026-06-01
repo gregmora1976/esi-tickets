@@ -680,9 +680,9 @@ async function renderDoneTickets(){
       item.className = 'ticket-item clickable';
 
       const fiche = ticket.fiche || {};
-      const prixAchatRaw = fiche.prixAchat || '';
-      const prixAchat = prixAchatRaw
-        ? (String(prixAchatRaw).includes('€') ? String(prixAchatRaw) : String(prixAchatRaw) + ' €')
+      const prixCessionRaw = fiche.prixCession || '';
+      const prixCession = prixCessionRaw
+        ? (String(prixCessionRaw).includes('€') ? String(prixCessionRaw) : String(prixCessionRaw) + ' €')
         : '-';
 
       const managerSheets = (ticket.managerSheets && ticket.managerSheets.length)
@@ -700,7 +700,7 @@ async function renderDoneTickets(){
           : ticket.module === 'Demande de devis'
             ? `<div class="done-line">Titre : <strong>${escapeHtml(ticket.expo || ticket.objet || '-')}</strong></div>
                <div class="done-line">Chargé : <strong>${escapeHtml(ticket.chargeProjet || '-')}</strong></div>`
-            : `<div class="done-line">Dims : <strong>${escapeHtml(dimensions)}</strong></div><div class="done-line">Prix : <strong>${escapeHtml(prixAchat)}</strong></div><div class="done-line">Caissier : <strong>${escapeHtml(nomCaissier)}</strong></div>`}
+            : `<div class="done-line">Dims : <strong>${escapeHtml(dimensions)}</strong></div><div class="done-line">Prix cession : <strong>${escapeHtml(prixCession)}</strong></div><div class="done-line">Caissier : <strong>${escapeHtml(nomCaissier)}</strong></div>`}
       `;
 
       item.addEventListener('click', () => openDoneTicketDetails(ticket));
