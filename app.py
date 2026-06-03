@@ -232,6 +232,7 @@ def _ticket_to_db_row(ticket):
         "date_rdv": _as_text(ticket.get("dateRdv")),
         "heure_rdv": _as_text(ticket.get("heureRdv")),
         "lieu_rdv": _as_text(ticket.get("lieuRdv")),
+        "contact_rdv": _as_text(ticket.get("contactRdv")),
         "commentaire": _as_text(ticket.get("commentaire")),
         "validated_at": _as_text(ticket.get("validatedAt")),
         "raw_json": ticket,
@@ -258,6 +259,7 @@ def _ticket_from_db_row(row):
         "dateRdv": row.get("date_rdv") or "-",
         "heureRdv": row.get("heure_rdv") or "-",
         "lieuRdv": row.get("lieu_rdv") or "-",
+        "contactRdv": row.get("contact_rdv") or "-",
         "commentaire": row.get("commentaire") or "",
         "validatedAt": row.get("validated_at") or "",
     }
@@ -574,6 +576,7 @@ def api_create_ticket():
         'dateRdv': form.get('dateRdv','-') or '-',
         'heureRdv': form.get('heureRdv','-') or '-',
         'lieuRdv': form.get('lieuRdv','-') or '-',
+        'contactRdv': form.get('contactRdv','-') or '-',
         'commentaire': form.get('commentaire',''),
         'files': [],
         'managerSheets': []
@@ -630,6 +633,7 @@ def api_update_ticket(ticket_id):
         'dateRdv',
         'heureRdv',
         'lieuRdv',
+        'contactRdv',
         'commentaire'
     ]
 
