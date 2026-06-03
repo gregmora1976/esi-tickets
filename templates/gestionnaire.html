@@ -365,13 +365,13 @@ function renderTableHead(){
   let cols = [];
 
   if(state.currentFilter === 'Fiche de caisse'){
-    cols = ['ID','N° dossier','N° caisse','Chargé projet','Statut'];
+    cols = ['N° dossier','N° caisse','Chargé projet','Statut'];
   } else if(state.currentFilter === 'Demande de devis'){
-    cols = ['ID','Client','Projet','Date rendu','Statut'];
+    cols = ['Client','Projet','Date rendu','Statut'];
   } else if(state.currentFilter === 'Demande Aller voir'){
-    cols = ['ID','Dossier / Client','Lieu RDV','Date / heure RDV','Statut'];
+    cols = ['Dossier / Client','Lieu RDV','Date / heure RDV','Statut'];
   } else {
-    cols = ['ID','Dossier / Client','Chargé projet','Date création','Statut'];
+    cols = ['Type','Dossier / Client','Chargé projet','Date création','Statut'];
   }
 
   els.tableHead.innerHTML = cols.map(c => `<div>${escapeHtml(c)}</div>`).join('');
@@ -391,7 +391,6 @@ function renderTable(){
 
     if(state.currentFilter === 'Fiche de caisse'){
       rowHtml = `
-        <div><strong>${moduleIcon(ticket.module)} ${escapeHtml(ticket.id)}</strong></div>
         <div>${escapeHtml(ticket.dossier||'-')}</div>
         <div>${escapeHtml(ticket.ref||'-')}</div>
         <div>${escapeHtml(ticket.chargeProjet||'-')}</div>
@@ -399,7 +398,6 @@ function renderTable(){
       `;
     } else if(state.currentFilter === 'Demande de devis'){
       rowHtml = `
-        <div><strong>${moduleIcon(ticket.module)} ${escapeHtml(ticket.id)}</strong></div>
         <div>${escapeHtml(ticket.dossier||'-')}</div>
         <div>${escapeHtml(ticket.expo||ticket.objet||'-')}</div>
         <div>${escapeHtml(formatDateSimpleFR(ticket.dateEmballage))}</div>
@@ -407,7 +405,6 @@ function renderTable(){
       `;
     } else if(state.currentFilter === 'Demande Aller voir'){
       rowHtml = `
-        <div><strong>${moduleIcon(ticket.module)} ${escapeHtml(ticket.id)}</strong></div>
         <div>${escapeHtml(ticket.dossier||'-')}</div>
         <div>${escapeHtml(ticket.lieuRdv||'-')}</div>
         <div>${escapeHtml(formatDateSimpleFR(ticket.dateRdv) + ' ' + (ticket.heureRdv||''))}</div>
@@ -415,7 +412,7 @@ function renderTable(){
       `;
     } else {
       rowHtml = `
-        <div><strong>${moduleIcon(ticket.module)} ${escapeHtml(ticket.id)}</strong><div class="small">${escapeHtml(ticket.module)}</div></div>
+        <div><strong>${moduleIcon(ticket.module)} ${escapeHtml(ticket.module||'-')}</strong></div>
         <div>${escapeHtml(ticket.dossier||'-')}</div>
         <div>${escapeHtml(ticket.chargeProjet||'-')}</div>
         <div>${escapeHtml(ticket.createdAt ? new Date(ticket.createdAt).toLocaleDateString('fr-FR') : '-')}</div>
@@ -440,10 +437,14 @@ async function renderDetail(){
     els.managerSheetBox.innerHTML='<div class="small">Aucune feuille de caisse déposée.</div>';
     return;
   }
-  if(ticket.module === 'Demande Aller voir'){
+  if(ticket.module === 'Fiche de caisse'){
+    els.detailTitle.textContent = `${ticket.dossier || '-'} - ${ticket.ref || '-'}`;
+  }else if(ticket.module === 'Demande de devis'){
+    els.detailTitle.textContent = `${ticket.dossier || '-'} - ${ticket.expo || ticket.objet || '-'}`;
+  }else if(ticket.module === 'Demande Aller voir'){
     els.detailTitle.textContent = `${ticket.dossier || '-'} - ${ticket.lieuRdv || '-'}`;
   }else{
-    els.detailTitle.textContent=`${moduleIcon(ticket.module)} ${ticket.id} — ${ticket.module}`;
+    els.detailTitle.textContent = `${ticket.dossier || '-'} - ${ticket.expo || ticket.objet || ticket.module || '-'}`;
   }
   els.detailStatus.textContent=ticket.status||'Demande créée';
   els.detailStatus.className=`badge ${badgeClass(ticket.status||'Demande créée')}`;updateStatusButtons(ticket.status||'Demande créée');
@@ -473,7 +474,6 @@ async function renderDetail(){
 
   if(ticket.module === 'Fiche de caisse'){
     entries = [
-      ['ID', escapeHtml(ticket.id || '-')],
       ['Module', escapeHtml(ticket.module || '-')],
       ['N° dossier', canEdit ? input('edit-dossier', ticket.dossier || '') : escapeHtml(ticket.dossier||'-')],
       ['N° caisse / Réf.', canEdit ? input('edit-ref', ticket.ref || '') : escapeHtml(ticket.ref||'-')],
@@ -489,7 +489,6 @@ async function renderDetail(){
     ];
   } else if(ticket.module === 'Demande de devis'){
     entries = [
-      ['ID', escapeHtml(ticket.id || '-')],
       ['Module', escapeHtml(ticket.module || '-')],
       ['Client', canEdit ? input('edit-dossier', ticket.dossier || '') : escapeHtml(ticket.dossier||'-')],
       ['Chargé projet', canEdit ? input('edit-chargeProjet', ticket.chargeProjet || '') : escapeHtml(ticket.chargeProjet||'-')],
@@ -514,7 +513,6 @@ async function renderDetail(){
     ];
   } else {
     entries = [
-      ['ID', escapeHtml(ticket.id || '-')],
       ['Module', escapeHtml(ticket.module || '-')],
       ['N° dossier / Client', canEdit ? input('edit-dossier', ticket.dossier || '') : escapeHtml(ticket.dossier||'-')],
       ['N° caisse / Réf.', canEdit ? input('edit-ref', ticket.ref || '') : escapeHtml(ticket.ref||'-')],

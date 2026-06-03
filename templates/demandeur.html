@@ -543,7 +543,15 @@ function openDoneTicketDetails(ticket){
     : (ticket.managerSheet && ticket.managerSheet.name ? [ticket.managerSheet] : []);
 
   const module = ticket.module || '';
-  title.textContent = `${displayValue(module)} - ${displayValue(ticket.dossier)}${ticket.ref && ticket.ref !== '-' ? ' / ' + displayValue(ticket.ref) : ''}`;
+  if(module === 'Fiche de caisse'){
+    title.textContent = `${displayValue(ticket.dossier)} - ${displayValue(ticket.ref)}`;
+  } else if(module === 'Demande de devis'){
+    title.textContent = `${displayValue(ticket.dossier)} - ${displayValue(ticket.expo || ticket.objet)}`;
+  } else if(module === 'Demande Aller voir'){
+    title.textContent = `${displayValue(ticket.dossier)} - ${displayValue(ticket.lieuRdv)}`;
+  } else {
+    title.textContent = `${displayValue(ticket.dossier)} - ${displayValue(ticket.expo || ticket.objet || module)}`;
+  }
 
   let html = '';
 
@@ -692,8 +700,17 @@ async function renderDoneTickets(){
       const dimensions = `${fiche.longueur || '-'} x ${fiche.largeur || '-'} x ${fiche.hauteur || '-'}`;
       const nomCaissier = fiche.choixCaissier || '-';
 
+      const doneTitle =
+        ticket.module === 'Fiche de caisse'
+          ? `${ticket.dossier || '-'} - ${ticket.ref || '-'}`
+          : ticket.module === 'Demande de devis'
+            ? `${ticket.dossier || '-'} - ${ticket.expo || ticket.objet || '-'}`
+            : ticket.module === 'Demande Aller voir'
+              ? `${ticket.dossier || '-'} - ${ticket.lieuRdv || '-'}`
+              : `${ticket.dossier || '-'} - ${ticket.expo || ticket.objet || ticket.ref || '-'}`;
+
       item.innerHTML = `
-        <div class="done-title">${escapeHtml((ticket.dossier || '-') + ' - ' + (ticket.ref || '-'))}</div>
+        <div class="done-title">${escapeHtml(doneTitle)}</div>
         <div class="done-line">Chargé : <strong>${escapeHtml(ticket.chargeProjet || '-')}</strong></div>
         ${ticket.module === 'Demande Aller voir'
           ? `<div class="done-line">Lieu : <strong>${escapeHtml(ticket.lieuRdv || '-')}</strong></div><div class="done-line">RDV : <strong>${escapeHtml((ticket.dateRdv || '-') + ' ' + (ticket.heureRdv || '-'))}</strong></div>`
