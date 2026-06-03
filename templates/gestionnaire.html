@@ -341,7 +341,7 @@ function filteredTickets(){
       normalizeModule(t.module) === normalizeModule(state.currentFilter);
 
     const statusOk = state.currentStatusFilter === 'all' || (t.status || 'Demande créée') === state.currentStatusFilter;
-    const hay = `${t.id} ${t.dossier} ${t.ref} ${t.objet} ${t.preteur} ${t.expo} ${t.chargeProjet || ''} ${t.lieuRdv || ''} ${t.dateRdv || ''} ${t.heureRdv || ''}`.toLowerCase();
+    const hay = `${t.id} ${t.dossier} ${t.ref} ${t.objet} ${t.preteur} ${t.expo} ${t.chargeProjet || ''} ${t.lieuRdv || ''} ${t.contactRdv || ''} ${t.dateRdv || ''} ${t.heureRdv || ''}`.toLowerCase();
     return filterOk && statusOk && hay.includes(state.searchTerm.toLowerCase());
   });
   const weight = {high:0, medium:1, normal:2};
@@ -440,7 +440,11 @@ async function renderDetail(){
     els.managerSheetBox.innerHTML='<div class="small">Aucune feuille de caisse déposée.</div>';
     return;
   }
-  els.detailTitle.textContent=`${moduleIcon(ticket.module)} ${ticket.id} — ${ticket.module}`;
+  if(ticket.module === 'Demande Aller voir'){
+    els.detailTitle.textContent = `${ticket.dossier || '-'} - ${ticket.lieuRdv || '-'}`;
+  }else{
+    els.detailTitle.textContent=`${moduleIcon(ticket.module)} ${ticket.id} — ${ticket.module}`;
+  }
   els.detailStatus.textContent=ticket.status||'Demande créée';
   els.detailStatus.className=`badge ${badgeClass(ticket.status||'Demande créée')}`;updateStatusButtons(ticket.status||'Demande créée');
 
@@ -497,7 +501,7 @@ async function renderDetail(){
     ];
   } else if(ticket.module === 'Demande Aller voir'){
     entries = [
-      ['ID', escapeHtml(ticket.id || '-')],
+      ['Contact', canEdit ? input('edit-contactRdv', ticket.contactRdv || '') : escapeHtml(ticket.contactRdv || '-')],
       ['Module', escapeHtml(ticket.module || '-')],
       ['Dossier / Client', canEdit ? input('edit-dossier', ticket.dossier || '') : escapeHtml(ticket.dossier||'-')],
       ['Chargé projet', canEdit ? input('edit-chargeProjet', ticket.chargeProjet || '') : escapeHtml(ticket.chargeProjet||'-')],
@@ -671,6 +675,7 @@ async function saveEditedTicket(){
     objet: getValue('edit-expo'),
     typeCaisse: getValue('edit-typeCaisse'),
     lieuRdv: getValue('edit-lieuRdv'),
+    contactRdv: getValue('edit-contactRdv'),
     dateRdv: getValue('edit-dateRdv'),
     heureRdv: getValue('edit-heureRdv'),
     dateEmballage: getValue('edit-dateEmballage'),
