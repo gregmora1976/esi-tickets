@@ -28,8 +28,9 @@
     resize:vertical;
   }
 
-  .ref-card{margin-top:22px}
-  .ref-card.hidden{display:none}
+  .ref-modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,.45);z-index:1200;display:none;align-items:center;justify-content:center;padding:20px}
+  .ref-modal-backdrop.show{display:flex}
+  .ref-modal-card{background:#fff;width:min(1180px,100%);max-height:92vh;overflow:auto;border:1px solid #dbe7f0;border-radius:24px;box-shadow:0 24px 80px rgba(15,23,42,.25);padding:22px}
   .ref-layout{display:grid;grid-template-columns:340px 1fr;gap:16px}
   .ref-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
   .ref-tab{border:1px solid #dbe7f0;background:#fff;border-radius:14px;padding:10px 12px;font-weight:700;cursor:pointer}
@@ -83,40 +84,6 @@
       </section>
 
 
-
-      <section class="card ref-card hidden" id="referentielsPanel">
-        <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;">
-          <div>
-            <div class="section-title" style="margin-bottom:6px">Référentiels</div>
-            <div class="small">Créer et gérer les fiches utilisées par l’application : chargés de projet, clients et contacts.</div>
-          </div>
-          <button class="btn secondary" id="closeReferentielsBtn" type="button">Fermer</button>
-        </div>
-        <div style="height:14px"></div>
-        <div class="ref-tabs" id="refTabs">
-          <button class="ref-tab active" type="button" data-ref-kind="project-managers">Chargés de projet</button>
-          <button class="ref-tab" type="button" data-ref-kind="clients">Clients</button>
-          <button class="ref-tab" type="button" data-ref-kind="contacts">Contacts</button>
-        </div>
-        <div class="ref-layout">
-          <div>
-            <div class="section-title" id="refFormTitle" style="margin-bottom:10px">Nouveau chargé de projet</div>
-            <div class="ref-form" id="refFormFields"></div>
-            <input type="hidden" id="refEditId" />
-            <div class="actions" style="justify-content:flex-start;margin-top:12px">
-              <button class="btn primary" id="saveRefBtn" type="button">Enregistrer</button>
-              <button class="btn secondary" id="resetRefBtn" type="button">Nouveau</button>
-            </div>
-          </div>
-          <div>
-            <div class="ref-search-row">
-              <input class="search" id="refSearch" placeholder="Rechercher dans les référentiels..." />
-              <button class="btn secondary" id="refreshRefBtn" type="button">Rafraîchir</button>
-            </div>
-            <div class="ref-list" id="refList"><div class="small">Chargement...</div></div>
-          </div>
-        </div>
-      </section>
 
       <div class="layout">
         <section class="card">
@@ -210,6 +177,43 @@
       </div>
     </div>
   </div>
+</div>
+
+
+<div class="ref-modal-backdrop" id="referentielsModal" aria-hidden="true">
+  <section class="ref-modal-card" id="referentielsPanel" role="dialog" aria-modal="true" aria-labelledby="referentielsTitle">
+    <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+      <div>
+        <div class="section-title" id="referentielsTitle" style="margin-bottom:6px">Référentiels</div>
+        <div class="small">Créer et gérer les fiches utilisées par l’application : chargés de projet, clients et contacts.</div>
+      </div>
+      <button class="btn secondary" id="closeReferentielsBtn" type="button">Fermer</button>
+    </div>
+    <div style="height:14px"></div>
+    <div class="ref-tabs" id="refTabs">
+      <button class="ref-tab active" type="button" data-ref-kind="project-managers">Chargés de projet</button>
+      <button class="ref-tab" type="button" data-ref-kind="clients">Clients</button>
+      <button class="ref-tab" type="button" data-ref-kind="contacts">Contacts</button>
+    </div>
+    <div class="ref-layout">
+      <div>
+        <div class="section-title" id="refFormTitle" style="margin-bottom:10px">Nouveau chargé de projet</div>
+        <div class="ref-form" id="refFormFields"></div>
+        <input type="hidden" id="refEditId" />
+        <div class="actions" style="justify-content:flex-start;margin-top:12px">
+          <button class="btn primary" id="saveRefBtn" type="button">Enregistrer</button>
+          <button class="btn secondary" id="resetRefBtn" type="button">Nouveau</button>
+        </div>
+      </div>
+      <div>
+        <div class="ref-search-row">
+          <input class="search" id="refSearch" placeholder="Rechercher dans les référentiels..." />
+          <button class="btn secondary" id="refreshRefBtn" type="button">Rafraîchir</button>
+        </div>
+        <div class="ref-list" id="refList"><div class="small">Chargement...</div></div>
+      </div>
+    </div>
+  </section>
 </div>
 
 
@@ -953,6 +957,7 @@ async function saveReferentiel(){
     showNotice(`${cfg.label.charAt(0).toUpperCase() + cfg.label.slice(1)} enregistré`);
     renderRefForm();
     await loadReferentiels();
+    closeReferentielsModal();
   }catch(e){
     showNotice(e.message || 'Erreur enregistrement référentiel');
   }
@@ -1008,17 +1013,23 @@ function setupManagerDrop(){
   });
 }
 
-const referentielsPanel = document.getElementById('referentielsPanel');
-document.getElementById('toggleReferentielsBtn').addEventListener('click', async ()=>{
-  const isHidden = referentielsPanel.classList.contains('hidden');
-  referentielsPanel.classList.toggle('hidden', !isHidden ? true : false);
-  if(isHidden){
-    await loadReferentiels();
-    referentielsPanel.scrollIntoView({behavior:'smooth', block:'start'});
-  }
+const referentielsModal = document.getElementById('referentielsModal');
+function openReferentielsModal(){
+  referentielsModal.classList.add('show');
+  referentielsModal.setAttribute('aria-hidden', 'false');
+  loadReferentiels();
+}
+function closeReferentielsModal(){
+  referentielsModal.classList.remove('show');
+  referentielsModal.setAttribute('aria-hidden', 'true');
+}
+document.getElementById('toggleReferentielsBtn').addEventListener('click', openReferentielsModal);
+document.getElementById('closeReferentielsBtn').addEventListener('click', closeReferentielsModal);
+referentielsModal.addEventListener('click', (e)=>{
+  if(e.target === referentielsModal) closeReferentielsModal();
 });
-document.getElementById('closeReferentielsBtn').addEventListener('click', ()=>{
-  referentielsPanel.classList.add('hidden');
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape') closeReferentielsModal();
 });
 document.getElementById('openDemandeur').addEventListener('click',()=>window.open('/demandeur','_blank'));
 document.getElementById('exportExcel').addEventListener('click',()=>window.open('/api/export/excel','_blank'));
