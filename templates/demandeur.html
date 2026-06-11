@@ -58,32 +58,6 @@
     .ticket-item.clickable{cursor:pointer}
     @media (max-width:720px){.info-grid{grid-template-columns:1fr}.modal-head,.modal-body{padding:18px}.modal-title{font-size:20px}}
 
-
-
-    .field{position:relative}
-    .autocomplete-box{
-      position:absolute;
-      left:0;
-      right:0;
-      top:100%;
-      z-index:9999;
-      background:#fff;
-      border:1px solid var(--line);
-      border-radius:14px;
-      box-shadow:0 14px 34px rgba(15,23,42,.18);
-      margin-top:4px;
-      overflow:hidden;
-      display:none;
-      max-height:240px;
-      overflow-y:auto;
-    }
-    .autocomplete-box.show{display:block}
-    .autocomplete-item{padding:10px 12px;cursor:pointer;border-bottom:1px solid #edf2f7}
-    .autocomplete-item:last-child{border-bottom:none}
-    .autocomplete-item:hover{background:#f0f9ff}
-    .autocomplete-name{font-weight:800;color:#0f172a;font-size:14px}
-    .autocomplete-meta{font-size:12px;color:#64748b;margin-top:2px}
-
     @media (max-width:1100px){.layout{grid-template-columns:1fr}}
     @media (max-width:720px){h1{font-size:28px}.grid,.grid.three{grid-template-columns:1fr}.hero-top,.content,.card{padding:18px}}
   </style>
@@ -132,7 +106,7 @@
                 <div class="field"><label>N° caisse</label><input class="input" id="caisse-numero" /></div>
                 <div class="field"><label>Prêteur</label><input class="input" id="caisse-preteur" /></div>
                 <div class="field"><label>Titre de l'expo</label><input class="input" id="caisse-expo" /></div>
-<div class="field"><label>Chargé de projet</label><input class="input" id="caisse-charge-projet" /></div>
+<div class="field"><label>Chargé de projet</label><input class="input" id="caisse-charge-projet" list="pm-list" autocomplete="off" /></div>
                 <div class="field"><label>Date mise à dispo</label><input class="input" id="caisse-date-emballage" type="date" /></div>
                 <div class="field"><label>Prix devis</label><input class="input" id="caisse-prix-devis" placeholder="ex. 1250 €" /></div>
                 <div class="field" style="grid-column:1 / -1;"><label>Type de caisse</label><input class="input" id="caisse-type" /></div>
@@ -166,8 +140,8 @@
             <form id="form-devis" class="card hidden">
               <div class="section-title">Formulaire demande de devis</div>
               <div class="grid">
-                <div class="field"><label>Client</label><input class="input" id="devis-client" /></div>
-                <div class="field"><label>Chargé de projet</label><input class="input" id="devis-charge-projet" /></div>
+                <div class="field"><label>Client</label><input class="input" id="devis-client" list="clients-list" autocomplete="off" /></div>
+                <div class="field"><label>Chargé de projet</label><input class="input" id="devis-charge-projet" list="pm-list" autocomplete="off" /></div>
                 <div class="field"><label>Nom du projet</label><input class="input" id="devis-projet" /></div>
                 <div class="field"><label>Date de rendu souhaité</label><input class="input" id="devis-date-rendu" type="date" /></div>
               </div>
@@ -193,11 +167,11 @@
             <form id="form-aller-voir" class="card hidden">
               <div class="section-title">Formulaire demande Aller voir</div>
               <div class="grid">
-                <div class="field"><label>N° dossier / Client</label><input class="input" id="aller-client" /></div>
-                <div class="field"><label>Chargé de projet</label><input class="input" id="aller-charge-projet" /></div>
+                <div class="field"><label>N° dossier / Client</label><input class="input" id="aller-client" list="clients-list" autocomplete="off" /></div>
+                <div class="field"><label>Chargé de projet</label><input class="input" id="aller-charge-projet" list="pm-list" autocomplete="off" /></div>
                 <div class="field"><label>Nom du projet</label><input class="input" id="aller-projet" /></div>
                 <div class="field"><label>Lieu de RDV (nom + adresse complète)</label><input class="input" id="aller-lieu-rdv" /></div>
-                <div class="field"><label>Contact (nom + téléphone)</label><input class="input" id="aller-contact-rdv" /></div>
+                <div class="field"><label>Contact (nom + téléphone)</label><input class="input" id="aller-contact-rdv" list="contacts-list" autocomplete="off" /></div>
                 <div class="field"><label>Date du RDV</label><input class="input" id="aller-date-rdv" type="date" /></div>
                 <div class="field"><label>Heure du RDV</label><input class="input" id="aller-heure-rdv" type="time" /></div>
               </div>
@@ -237,6 +211,10 @@
     </div>
   </div>
   <div class="notice" id="notice"></div>
+
+  <datalist id="pm-list"></datalist>
+  <datalist id="clients-list"></datalist>
+  <datalist id="contacts-list"></datalist>
 
   <div class="modal-backdrop" id="doneModal" aria-hidden="true">
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="doneModalTitle">
@@ -311,103 +289,31 @@ function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-function debounce(fn, delay=180){
-  let timer;
-  return (...args) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), delay);
-  };
+async function loadReferentielOptions(endpoint, datalistId, formatter){
+  const datalist = document.getElementById(datalistId);
+  if(!datalist) return;
+  try{
+    const res = await fetch(endpoint);
+    if(!res.ok) throw new Error('Référentiel indisponible');
+    const items = await res.json();
+    datalist.innerHTML = (items || [])
+      .filter(item => item && item.actif !== false)
+      .map(item => {
+        const value = formatter(item);
+        return value ? `<option value="${escapeHtml(value)}"></option>` : '';
+      })
+      .join('');
+  }catch(e){
+    console.error('Erreur chargement référentiel', endpoint, e);
+  }
 }
-function buildAutocompleteMeta(item){
-  const bits = [];
-  if(item.email) bits.push(item.email);
-  if(item.telephone) bits.push(item.telephone);
-  if(item.client_nom) bits.push(item.client_nom);
-  if(item.fonction) bits.push(item.fonction);
-  return bits.join(' · ');
-}
-function setupAutocomplete(inputId, endpoint, options = {}){
-  const input = document.getElementById(inputId);
-  if(!input) return;
-
-  const box = document.createElement('div');
-  box.className = 'autocomplete-box';
-  input.parentElement.appendChild(box);
-
-  const getLabel = options.getLabel || (item => item.nom || '');
-  const getValue = options.getValue || getLabel;
-
-  const closeLater = () => {
-    setTimeout(() => box.classList.remove('show'), 160);
-  };
-
-  const search = debounce(async () => {
-    const q = input.value.trim();
-    if(q.length < 2){
-      box.innerHTML = '';
-      box.classList.remove('show');
-      return;
-    }
-
-    try{
-      const res = await fetch(`${endpoint}?q=${encodeURIComponent(q)}`);
-      if(!res.ok) throw new Error('Erreur référentiel');
-      const items = await res.json();
-
-      if(!items || !items.length){
-        box.innerHTML = '<div class="autocomplete-item"><div class="autocomplete-meta">Aucun résultat</div></div>';
-        box.classList.add('show');
-        return;
-      }
-
-      box.innerHTML = items.map((item, index) => `
-        <div class="autocomplete-item" data-index="${index}">
-          <div class="autocomplete-name">${escapeHtml(getLabel(item))}</div>
-          <div class="autocomplete-meta">${escapeHtml(buildAutocompleteMeta(item))}</div>
-        </div>
-      `).join('');
-
-      Array.from(box.querySelectorAll('.autocomplete-item')).forEach(el => {
-        el.addEventListener('mousedown', e => {
-          e.preventDefault();
-          const item = items[Number(el.dataset.index)];
-          input.value = getValue(item);
-          box.classList.remove('show');
-        });
-      });
-
-      box.classList.add('show');
-    }catch(e){
-      console.error('Erreur autocomplétion', e);
-      box.innerHTML = '<div class="autocomplete-item"><div class="autocomplete-meta">Référentiel indisponible</div></div>';
-      box.classList.add('show');
-    }
-  }, 180);
-
-  input.addEventListener('input', search);
-  input.addEventListener('focus', search);
-  input.addEventListener('blur', closeLater);
-}
-function setupAllAutocompletes(){
-  const projectManagers = '/api/referentiels/project-managers';
-  const clients = '/api/referentiels/clients';
-  const contacts = '/api/referentiels/contacts';
-
-  ['caisse-charge-projet','devis-charge-projet','aller-charge-projet'].forEach(id => {
-    setupAutocomplete(id, projectManagers);
-  });
-
-  ['devis-client','aller-client'].forEach(id => {
-    setupAutocomplete(id, clients);
-  });
-
-  setupAutocomplete('aller-contact-rdv', contacts, {
-    getLabel: item => item.nom || '',
-    getValue: item => {
-      const nom = item.nom || '';
-      const tel = item.telephone || '';
-      return tel ? `${nom} - ${tel}` : nom;
-    }
+function loadAllReferentiels(){
+  loadReferentielOptions('/api/referentiels/project-managers', 'pm-list', item => item.nom || '');
+  loadReferentielOptions('/api/referentiels/clients', 'clients-list', item => item.nom || '');
+  loadReferentielOptions('/api/referentiels/contacts', 'contacts-list', item => {
+    const nom = item.nom || '';
+    const tel = item.telephone || '';
+    return tel ? `${nom} - ${tel}` : nom;
   });
 }
 
@@ -915,9 +821,9 @@ setupDrop('dropDevis','dropInnerDevis',els.fileInputDevis,state.filesDevis);
 setupDrop('dropAllerVoir','dropInnerAllerVoir',els.fileInputAllerVoir,state.filesAllerVoir);
 
 activateModule('caisse');
-setupAllAutocompletes();
 renderAllFiles();
 loadConfigStatus();
+loadAllReferentiels();
 
 window.addEventListener('load', async ()=>{ try { await renderDoneTickets(); } catch(e){} });
 setInterval(async ()=>{ try { await renderDoneTickets(); } catch(e){} }, 10000);
