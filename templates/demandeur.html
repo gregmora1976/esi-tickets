@@ -59,29 +59,26 @@
     @media (max-width:720px){.info-grid{grid-template-columns:1fr}.modal-head,.modal-body{padding:18px}.modal-title{font-size:20px}}
 
 
+
     .field{position:relative}
     .autocomplete-box{
       position:absolute;
       left:0;
       right:0;
       top:100%;
-      z-index:80;
+      z-index:9999;
       background:#fff;
       border:1px solid var(--line);
       border-radius:14px;
-      box-shadow:0 14px 34px rgba(15,23,42,.16);
+      box-shadow:0 14px 34px rgba(15,23,42,.18);
       margin-top:4px;
       overflow:hidden;
       display:none;
-      max-height:230px;
+      max-height:240px;
       overflow-y:auto;
     }
     .autocomplete-box.show{display:block}
-    .autocomplete-item{
-      padding:10px 12px;
-      cursor:pointer;
-      border-bottom:1px solid #edf2f7;
-    }
+    .autocomplete-item{padding:10px 12px;cursor:pointer;border-bottom:1px solid #edf2f7}
     .autocomplete-item:last-child{border-bottom:none}
     .autocomplete-item:hover{background:#f0f9ff}
     .autocomplete-name{font-weight:800;color:#0f172a;font-size:14px}
@@ -321,7 +318,6 @@ function debounce(fn, delay=180){
     timer = setTimeout(() => fn(...args), delay);
   };
 }
-
 function buildAutocompleteMeta(item){
   const bits = [];
   if(item.email) bits.push(item.email);
@@ -330,7 +326,6 @@ function buildAutocompleteMeta(item){
   if(item.fonction) bits.push(item.fonction);
   return bits.join(' · ');
 }
-
 function setupAutocomplete(inputId, endpoint, options = {}){
   const input = document.getElementById(inputId);
   if(!input) return;
@@ -342,10 +337,8 @@ function setupAutocomplete(inputId, endpoint, options = {}){
   const getLabel = options.getLabel || (item => item.nom || '');
   const getValue = options.getValue || getLabel;
 
-  const hide = () => {
-    setTimeout(() => {
-      box.classList.remove('show');
-    }, 140);
+  const closeLater = () => {
+    setTimeout(() => box.classList.remove('show'), 160);
   };
 
   const search = debounce(async () => {
@@ -393,9 +386,8 @@ function setupAutocomplete(inputId, endpoint, options = {}){
 
   input.addEventListener('input', search);
   input.addEventListener('focus', search);
-  input.addEventListener('blur', hide);
+  input.addEventListener('blur', closeLater);
 }
-
 function setupAllAutocompletes(){
   const projectManagers = '/api/referentiels/project-managers';
   const clients = '/api/referentiels/clients';
@@ -902,8 +894,7 @@ document.addEventListener('keydown', (e) => {
   if(e.key === 'Escape') closeDoneTicketDetails();
 });
 
-els.tabCaisse.addEventListener('click', ()=>{setupAllAutocompletes();
-activateModule('caisse'); renderDoneTickets();});
+els.tabCaisse.addEventListener('click', ()=>{activateModule('caisse'); renderDoneTickets();});
 els.tabDevis.addEventListener('click', ()=>{activateModule('devis'); renderDoneTickets();});
 els.tabAllerVoir.addEventListener('click', ()=>{activateModule('aller-voir'); renderDoneTickets();});
 document.getElementById('chooseCaisseFiles').addEventListener('click', (e)=>{e.stopPropagation(); els.fileInputCaisse.click();});
@@ -924,6 +915,7 @@ setupDrop('dropDevis','dropInnerDevis',els.fileInputDevis,state.filesDevis);
 setupDrop('dropAllerVoir','dropInnerAllerVoir',els.fileInputAllerVoir,state.filesAllerVoir);
 
 activateModule('caisse');
+setupAllAutocompletes();
 renderAllFiles();
 loadConfigStatus();
 
