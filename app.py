@@ -486,6 +486,139 @@ def load_ticket(ticket_id):
         return None
     return _attach_children(_ticket_from_db_row(rows[0]))
 
+
+# -----------------------------------------------------------------------------
+# Référentiels métier : chargés de projet, clients, contacts
+# -----------------------------------------------------------------------------
+REFERENTIELS = {
+    "project-managers": {
+        "table": "project_managers",
+        "allowed": ["nom", "email", "telephone", "actif"],
+        "search": ["nom", "email", "telephone"],
+        "required": ["nom"],
+        "defaults": {"actif": True},
+        "order": "nom.asc"
+    },
+    "clients": {
+        "table": "clients",
+        "allowed": ["nom", "adresse", "contact_nom", "contact_email", "contact_telephone", "actif"],
+        "search": ["nom", "adresse", "contact_nom", "contact_email", "contact_telephone"],
+        "required": ["nom"],
+        "defaults": {"actif": True},
+        "order": "nom.asc"
+    },
+    "contacts": {
+        "table": "contacts",
+        "allowed": ["nom", "email", "telephone", "client_nom", "fonction", "actif"],
+        "search": ["nom", "email", "telephone", "client_nom", "fonction"],
+        "required": ["nom"],
+        "defaults": {"actif": True},
+        "order": "nom.asc"
+    }
+}
+
+
+def _referentiel_config(kind):
+    cfg = REFERENTIELS.get(kind)
+    if not cfg:
+        abort(404)
+    return cfg
+
+
+def _clean_referentiel_payload(kind, data, partial=False):
+    cfg = _referentiel_config(kind)
+    data = data or {}
+    payload = {}
+
+    for field in cfg["allowed"]:
+        if field in data:
+            if field == "actif":
+                payload[field] = bool(data.get(field))
+            else:
+                payload[field] = _as_text(data.get(field)).strip()
+
+    if not partial:
+        for field, value in cfg.get("defaults", {}).items():
+            payload.setdefault(field, value)
+
+        missing = [field for field in cfg.get("required", []) if not payload.get(field)]
+        if missing:
+            raise ValueError("Champ obligatoire manquant : " + ", ".join(missing))
+
+    return payload
+
+
+@app.route('/api/referentiels/<kind>', methods=['GET'])
+def api_list_referentiel(kind):
+    cfg = _referentiel_config(kind)
+    q = (request.args.get('q') or '').strip()
+    include_inactive = request.args.get('include_inactive') == '1'
+    limit = request.args.get('limit') or '100'
+
+    query = "select=*"
+    if not include_inactive:
+        query += "&actif=eq.true"
+    if q:
+        pattern = "*" + q.replace("*", "") + "*"
+        parts = []
+        for field in cfg["search"]:
+            parts.append(f"{field}.ilike.{urllib.parse.quote(pattern, safe='*')}")
+        query += "&or=(" + ",".join(parts) + ")"
+    query += "&order=" + urllib.parse.quote(cfg.get("order", "nom.asc"), safe='.,')
+    query += "&limit=" + urllib.parse.quote(str(limit), safe='')
+
+    rows = supabase_rest_request("GET", cfg["table"], query) or []
+    return jsonify(rows)
+
+
+@app.route('/api/referentiels/<kind>', methods=['POST'])
+def api_create_referentiel(kind):
+    cfg = _referentiel_config(kind)
+    data = request.get_json(silent=True) or {}
+    try:
+        payload = _clean_referentiel_payload(kind, data, partial=False)
+    except ValueError as e:
+        return jsonify({'ok': False, 'error': str(e)}), 400
+
+    try:
+        rows = supabase_rest_request("POST", cfg["table"], "", [payload], prefer="return=representation") or []
+        return jsonify({'ok': True, 'item': rows[0] if rows else payload})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/referentiels/<kind>/<item_id>', methods=['PUT'])
+def api_update_referentiel(kind, item_id):
+    cfg = _referentiel_config(kind)
+    data = request.get_json(silent=True) or {}
+    try:
+        payload = _clean_referentiel_payload(kind, data, partial=True)
+    except ValueError as e:
+        return jsonify({'ok': False, 'error': str(e)}), 400
+
+    if not payload:
+        return jsonify({'ok': False, 'error': 'Aucune donnée à modifier'}), 400
+
+    safe_id = urllib.parse.quote(str(item_id), safe='')
+    try:
+        rows = supabase_rest_request("PATCH", cfg["table"], f"id=eq.{safe_id}", payload, prefer="return=representation") or []
+        return jsonify({'ok': True, 'item': rows[0] if rows else payload})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/referentiels/<kind>/<item_id>/toggle', methods=['PATCH'])
+def api_toggle_referentiel(kind, item_id):
+    cfg = _referentiel_config(kind)
+    data = request.get_json(silent=True) or {}
+    actif = bool(data.get('actif'))
+    safe_id = urllib.parse.quote(str(item_id), safe='')
+    try:
+        rows = supabase_rest_request("PATCH", cfg["table"], f"id=eq.{safe_id}", {"actif": actif}, prefer="return=representation") or []
+        return jsonify({'ok': True, 'item': rows[0] if rows else {'id': item_id, 'actif': actif}})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 @app.route('/')
 def index():
     return redirect(url_for('demandeur'))
