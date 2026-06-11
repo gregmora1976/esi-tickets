@@ -27,6 +27,21 @@
     min-height:180px;
     resize:vertical;
   }
+
+  .ref-card{margin-top:22px}
+  .ref-layout{display:grid;grid-template-columns:340px 1fr;gap:16px}
+  .ref-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .ref-tab{border:1px solid #dbe7f0;background:#fff;border-radius:14px;padding:10px 12px;font-weight:700;cursor:pointer}
+  .ref-tab.active{background:#0ea5e9;color:#fff;border-color:#0ea5e9}
+  .ref-form{display:grid;gap:10px}
+  .ref-list{display:grid;gap:8px;max-height:380px;overflow:auto}
+  .ref-item{border:1px solid #e2e8f0;background:#f8fafc;border-radius:14px;padding:10px;display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+  .ref-item strong{color:#0f172a}
+  .ref-meta{font-size:12px;color:#64748b;margin-top:3px;line-height:1.35}
+  .ref-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .ref-search-row{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+  @media (max-width:900px){.ref-layout{grid-template-columns:1fr}}
+
 </style>
 
 </head>
@@ -63,6 +78,41 @@
           <button class="btn secondary" id="refreshBtn" type="button">Rafraîchir</button>
           <button class="btn secondary" id="openDemandeur" type="button">Ouvrir le portail demandeur</button>
           <button class="btn primary" id="exportExcel" type="button">Exporter Excel</button>
+        </div>
+      </section>
+
+
+
+      <section class="card ref-card">
+        <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+          <div>
+            <div class="section-title" style="margin-bottom:6px">Référentiels</div>
+            <div class="small">Créer et gérer les fiches utilisées par l’application : chargés de projet, clients et contacts.</div>
+          </div>
+        </div>
+        <div style="height:14px"></div>
+        <div class="ref-tabs" id="refTabs">
+          <button class="ref-tab active" type="button" data-ref-kind="project-managers">Chargés de projet</button>
+          <button class="ref-tab" type="button" data-ref-kind="clients">Clients</button>
+          <button class="ref-tab" type="button" data-ref-kind="contacts">Contacts</button>
+        </div>
+        <div class="ref-layout">
+          <div>
+            <div class="section-title" id="refFormTitle" style="margin-bottom:10px">Nouveau chargé de projet</div>
+            <div class="ref-form" id="refFormFields"></div>
+            <input type="hidden" id="refEditId" />
+            <div class="actions" style="justify-content:flex-start;margin-top:12px">
+              <button class="btn primary" id="saveRefBtn" type="button">Enregistrer</button>
+              <button class="btn secondary" id="resetRefBtn" type="button">Nouveau</button>
+            </div>
+          </div>
+          <div>
+            <div class="ref-search-row">
+              <input class="search" id="refSearch" placeholder="Rechercher dans les référentiels..." />
+              <button class="btn secondary" id="refreshRefBtn" type="button">Rafraîchir</button>
+            </div>
+            <div class="ref-list" id="refList"><div class="small">Chargement...</div></div>
+          </div>
         </div>
       </section>
 
@@ -738,6 +788,208 @@ async function validateAllerVoir(){
     showNotice('Erreur calendrier : ' + (e.message || e));
   }
 }
+
+
+const refConfig = {
+  'project-managers': {
+    label: 'chargé de projet',
+    plural: 'Chargés de projet',
+    fields: [
+      ['nom', 'Nom / prénom', 'text'],
+      ['email', 'Email', 'email'],
+      ['telephone', 'Téléphone', 'text']
+    ],
+    render: item => ({
+      title: item.nom || '-',
+      meta: [item.email, item.telephone].filter(Boolean).join(' · ')
+    })
+  },
+  'clients': {
+    label: 'client',
+    plural: 'Clients',
+    fields: [
+      ['nom', 'Nom client', 'text'],
+      ['adresse', 'Adresse', 'text'],
+      ['contact_nom', 'Contact principal', 'text'],
+      ['contact_email', 'Email contact', 'email'],
+      ['contact_telephone', 'Téléphone contact', 'text']
+    ],
+    render: item => ({
+      title: item.nom || '-',
+      meta: [item.contact_nom, item.contact_email, item.contact_telephone, item.adresse].filter(Boolean).join(' · ')
+    })
+  },
+  'contacts': {
+    label: 'contact',
+    plural: 'Contacts',
+    fields: [
+      ['nom', 'Nom / prénom', 'text'],
+      ['client_nom', 'Client / société', 'text'],
+      ['fonction', 'Fonction', 'text'],
+      ['email', 'Email', 'email'],
+      ['telephone', 'Téléphone', 'text']
+    ],
+    render: item => ({
+      title: item.nom || '-',
+      meta: [item.client_nom, item.fonction, item.email, item.telephone].filter(Boolean).join(' · ')
+    })
+  }
+};
+
+const refState = { kind: 'project-managers', items: [], search: '' };
+const refEls = {
+  tabs: document.querySelectorAll('#refTabs .ref-tab'),
+  formTitle: document.getElementById('refFormTitle'),
+  formFields: document.getElementById('refFormFields'),
+  editId: document.getElementById('refEditId'),
+  list: document.getElementById('refList'),
+  search: document.getElementById('refSearch'),
+  save: document.getElementById('saveRefBtn'),
+  reset: document.getElementById('resetRefBtn'),
+  refresh: document.getElementById('refreshRefBtn')
+};
+
+function renderRefForm(item){
+  const cfg = refConfig[refState.kind];
+  const isEdit = !!(item && item.id);
+  refEls.editId.value = isEdit ? item.id : '';
+  refEls.formTitle.textContent = (isEdit ? 'Modifier ' : 'Nouveau ') + cfg.label;
+  refEls.formFields.innerHTML = cfg.fields.map(([name,label,type]) => `
+    <div class="field">
+      <label>${escapeHtml(label)}</label>
+      <input class="input" id="ref-field-${name}" type="${type}" value="${escapeHtml(item && item[name] ? item[name] : '')}" />
+    </div>
+  `).join('');
+}
+
+function readRefForm(){
+  const cfg = refConfig[refState.kind];
+  const payload = {};
+  cfg.fields.forEach(([name]) => {
+    const el = document.getElementById(`ref-field-${name}`);
+    payload[name] = el ? el.value.trim() : '';
+  });
+  payload.actif = true;
+  return payload;
+}
+
+async function loadReferentiels(){
+  const q = refEls.search.value.trim();
+  const url = `/api/referentiels/${encodeURIComponent(refState.kind)}?include_inactive=1&q=${encodeURIComponent(q)}&limit=200`;
+  try{
+    const res = await fetch(url);
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || 'Erreur chargement référentiels');
+    refState.items = data || [];
+    renderReferentielList();
+  }catch(e){
+    refEls.list.innerHTML = `<div class="empty">Impossible de charger les référentiels : ${escapeHtml(e.message || e)}</div>`;
+  }
+}
+
+function renderReferentielList(){
+  const cfg = refConfig[refState.kind];
+  if(!refState.items.length){
+    refEls.list.innerHTML = `<div class="empty">Aucun ${escapeHtml(cfg.label)} trouvé.</div>`;
+    return;
+  }
+  refEls.list.innerHTML = '';
+  refState.items.forEach(item => {
+    const display = cfg.render(item);
+    const row = document.createElement('div');
+    row.className = 'ref-item';
+    row.innerHTML = `
+      <div>
+        <strong>${escapeHtml(display.title)}</strong>
+        <div class="ref-meta">${escapeHtml(display.meta || 'Aucune information complémentaire')}</div>
+        <div class="ref-meta">${item.actif === false ? 'Inactif' : 'Actif'}</div>
+      </div>
+      <div class="ref-actions"></div>
+    `;
+    const actions = row.querySelector('.ref-actions');
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'btn secondary';
+    editBtn.type = 'button';
+    editBtn.textContent = 'Modifier';
+    editBtn.addEventListener('click', () => renderRefForm(item));
+    actions.appendChild(editBtn);
+
+    const toggleBtn = document.createElement('button');
+    toggleBtn.className = 'btn secondary';
+    toggleBtn.type = 'button';
+    toggleBtn.textContent = item.actif === false ? 'Réactiver' : 'Désactiver';
+    toggleBtn.addEventListener('click', async () => {
+      await toggleReferentiel(item.id, !(item.actif !== false));
+    });
+    actions.appendChild(toggleBtn);
+
+    refEls.list.appendChild(row);
+  });
+}
+
+async function saveReferentiel(){
+  const cfg = refConfig[refState.kind];
+  const payload = readRefForm();
+  if(!payload.nom){
+    showNotice('Le nom est obligatoire.');
+    return;
+  }
+  const id = refEls.editId.value;
+  const url = id
+    ? `/api/referentiels/${encodeURIComponent(refState.kind)}/${encodeURIComponent(id)}`
+    : `/api/referentiels/${encodeURIComponent(refState.kind)}`;
+  const method = id ? 'PUT' : 'POST';
+  try{
+    const res = await fetch(url, {
+      method,
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || 'Erreur enregistrement');
+    showNotice(`${cfg.label.charAt(0).toUpperCase() + cfg.label.slice(1)} enregistré`);
+    renderRefForm();
+    await loadReferentiels();
+  }catch(e){
+    showNotice(e.message || 'Erreur enregistrement référentiel');
+  }
+}
+
+async function toggleReferentiel(id, actif){
+  try{
+    const res = await fetch(`/api/referentiels/${encodeURIComponent(refState.kind)}/${encodeURIComponent(id)}/toggle`, {
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({actif})
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || 'Erreur modification');
+    await loadReferentiels();
+  }catch(e){
+    showNotice(e.message || 'Erreur modification référentiel');
+  }
+}
+
+function switchReferentiel(kind){
+  refState.kind = kind;
+  refEls.tabs.forEach(tab => tab.classList.toggle('active', tab.dataset.refKind === kind));
+  refEls.search.value = '';
+  renderRefForm();
+  loadReferentiels();
+}
+
+refEls.tabs.forEach(tab => tab.addEventListener('click', () => switchReferentiel(tab.dataset.refKind)));
+refEls.save.addEventListener('click', saveReferentiel);
+refEls.reset.addEventListener('click', () => renderRefForm());
+refEls.refresh.addEventListener('click', loadReferentiels);
+refEls.search.addEventListener('input', () => {
+  clearTimeout(window.__refSearchTimer);
+  window.__refSearchTimer = setTimeout(loadReferentiels, 250);
+});
+
+renderRefForm();
+loadReferentiels();
 
 function setupManagerDrop(){
   const drop=document.getElementById('managerDrop'), inner=document.getElementById('managerDropInner');
