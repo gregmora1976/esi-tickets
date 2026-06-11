@@ -915,6 +915,180 @@ async function renderDoneTickets(){
 }
 
 
+
+
+// Autocomplétion renforcée : fonctionne aussi sur les formulaires masqués puis affichés (devis / aller voir)
+const referenceFieldConfigs = {
+  'caisse-charge-projet': {
+    cacheKey: 'projectManagers',
+    endpoint: '/api/referentiels/project-managers',
+    searchFields: ['nom'],
+    main: item => item.nom || '',
+    sub: item => [item.email, item.telephone].filter(Boolean).join(' · '),
+    value: item => item.nom || ''
+  },
+  'devis-charge-projet': {
+    cacheKey: 'projectManagers',
+    endpoint: '/api/referentiels/project-managers',
+    searchFields: ['nom'],
+    main: item => item.nom || '',
+    sub: item => [item.email, item.telephone].filter(Boolean).join(' · '),
+    value: item => item.nom || ''
+  },
+  'aller-charge-projet': {
+    cacheKey: 'projectManagers',
+    endpoint: '/api/referentiels/project-managers',
+    searchFields: ['nom'],
+    main: item => item.nom || '',
+    sub: item => [item.email, item.telephone].filter(Boolean).join(' · '),
+    value: item => item.nom || ''
+  },
+  'devis-client': {
+    cacheKey: 'clients',
+    endpoint: '/api/referentiels/clients',
+    searchFields: ['nom'],
+    main: item => item.nom || '',
+    sub: item => [item.adresse, item.contact_nom, item.contact_telephone].filter(Boolean).join(' · '),
+    value: item => item.nom || ''
+  },
+  'aller-client': {
+    cacheKey: 'clients',
+    endpoint: '/api/referentiels/clients',
+    searchFields: ['nom'],
+    main: item => item.nom || '',
+    sub: item => [item.adresse, item.contact_nom, item.contact_telephone].filter(Boolean).join(' · '),
+    value: item => item.nom || ''
+  },
+  'caisse-preteur': {
+    cacheKey: 'clients',
+    endpoint: '/api/referentiels/clients',
+    searchFields: ['nom'],
+    main: item => item.nom || '',
+    sub: item => [item.adresse, item.contact_nom, item.contact_telephone].filter(Boolean).join(' · '),
+    value: item => item.nom || ''
+  },
+  'aller-contact-rdv': {
+    cacheKey: 'contacts',
+    endpoint: '/api/referentiels/contacts',
+    searchFields: ['nom','client_nom','telephone'],
+    main: item => item.nom || '',
+    sub: item => [item.client_nom, item.email, item.telephone].filter(Boolean).join(' · '),
+    value: item => item.telephone ? `${item.nom} - ${item.telephone}` : (item.nom || '')
+  }
+};
+
+let referenceLoadPromise = null;
+let activeReferenceInput = null;
+
+async function ensureReferenceCacheFor(config){
+  if((referentielCache[config.cacheKey] || []).length) return;
+  const rows = await fetchReferentiel(config.endpoint);
+  referentielCache[config.cacheKey] = rows;
+}
+
+async function ensureAllReferenceCaches(){
+  if(!referenceLoadPromise){
+    referenceLoadPromise = Promise.all([
+      ensureReferenceCacheFor(referenceFieldConfigs['caisse-charge-projet']),
+      ensureReferenceCacheFor(referenceFieldConfigs['devis-client']),
+      ensureReferenceCacheFor(referenceFieldConfigs['aller-contact-rdv'])
+    ]).catch(err => {
+      referenceLoadPromise = null;
+      throw err;
+    });
+  }
+  return referenceLoadPromise;
+}
+
+function renderReferenceSuggestions(input, config){
+  const menu = createAutocompleteMenu();
+  const query = input.value || '';
+  const items = (referentielCache[config.cacheKey] || [])
+    .filter(item => matchReferenceStart(item, query, config.searchFields))
+    .slice(0, 8);
+
+  if(!items.length){
+    if(menu.dataset.owner === input.id){
+      menu.style.display = 'none';
+      menu.innerHTML = '';
+      menu.dataset.owner = '';
+    }
+    return;
+  }
+
+  activeReferenceInput = input;
+  menu.dataset.owner = input.id;
+  menu.innerHTML = items.map((item, index) => {
+    const main = config.main(item);
+    const sub = config.sub ? config.sub(item) : '';
+    return `
+      <div class="autocomplete-item" data-index="${index}">
+        <div class="autocomplete-main">${escapeHtml(main)}</div>
+        ${sub ? `<div class="autocomplete-sub">${escapeHtml(sub)}</div>` : ''}
+      </div>`;
+  }).join('');
+
+  positionAutocompleteMenu(input, menu);
+  menu.style.display = 'block';
+
+  [...menu.querySelectorAll('.autocomplete-item')].forEach((el, index) => {
+    el.addEventListener('mousedown', e => {
+      e.preventDefault();
+      input.value = config.value(items[index]);
+      menu.style.display = 'none';
+      menu.innerHTML = '';
+      menu.dataset.owner = '';
+      input.dispatchEvent(new Event('change', {bubbles:true}));
+    });
+  });
+}
+
+async function showReferenceSuggestionsForInput(input){
+  const config = referenceFieldConfigs[input.id];
+  if(!config) return;
+  input.setAttribute('autocomplete','off');
+  try{
+    await ensureAllReferenceCaches();
+    await ensureReferenceCacheFor(config);
+    renderReferenceSuggestions(input, config);
+  }catch(e){
+    console.error('Autocomplétion référentiel indisponible', e);
+  }
+}
+
+document.addEventListener('input', e => {
+  if(e.target && referenceFieldConfigs[e.target.id]){
+    showReferenceSuggestionsForInput(e.target);
+  }
+});
+
+document.addEventListener('focusin', e => {
+  if(e.target && referenceFieldConfigs[e.target.id]){
+    showReferenceSuggestionsForInput(e.target);
+  }
+});
+
+document.addEventListener('focusout', e => {
+  if(e.target && referenceFieldConfigs[e.target.id]){
+    const input = e.target;
+    setTimeout(() => {
+      const menu = document.getElementById('referenceAutocompleteMenu');
+      if(menu && menu.dataset.owner === input.id){
+        menu.style.display = 'none';
+        menu.innerHTML = '';
+        menu.dataset.owner = '';
+      }
+    }, 180);
+  }
+});
+
+function refreshReferenceAutocompleteBindings(){
+  Object.keys(referenceFieldConfigs).forEach(id => {
+    const input = document.getElementById(id);
+    if(input) input.setAttribute('autocomplete','off');
+  });
+}
+
 document.getElementById('closeDoneModal').addEventListener('click', closeDoneTicketDetails);
 document.getElementById('doneModal').addEventListener('click', (e) => {
   if(e.target && e.target.id === 'doneModal') closeDoneTicketDetails();
@@ -923,9 +1097,9 @@ document.addEventListener('keydown', (e) => {
   if(e.key === 'Escape') closeDoneTicketDetails();
 });
 
-els.tabCaisse.addEventListener('click', ()=>{activateModule('caisse'); renderDoneTickets();});
-els.tabDevis.addEventListener('click', ()=>{activateModule('devis'); renderDoneTickets();});
-els.tabAllerVoir.addEventListener('click', ()=>{activateModule('aller-voir'); renderDoneTickets();});
+els.tabCaisse.addEventListener('click', ()=>{activateModule('caisse'); refreshReferenceAutocompleteBindings(); renderDoneTickets();});
+els.tabDevis.addEventListener('click', ()=>{activateModule('devis'); refreshReferenceAutocompleteBindings(); renderDoneTickets();});
+els.tabAllerVoir.addEventListener('click', ()=>{activateModule('aller-voir'); refreshReferenceAutocompleteBindings(); renderDoneTickets();});
 document.getElementById('chooseCaisseFiles').addEventListener('click', (e)=>{e.stopPropagation(); els.fileInputCaisse.click();});
 document.getElementById('chooseDevisFiles').addEventListener('click', (e)=>{e.stopPropagation(); els.fileInputDevis.click();});
 document.getElementById('chooseAllerVoirFiles').addEventListener('click', (e)=>{e.stopPropagation(); els.fileInputAllerVoir.click();});
@@ -947,6 +1121,7 @@ activateModule('caisse');
 renderAllFiles();
 loadConfigStatus();
 loadAllReferentiels();
+refreshReferenceAutocompleteBindings();
 
 window.addEventListener('load', async ()=>{ try { await renderDoneTickets(); } catch(e){} });
 setInterval(async ()=>{ try { await renderDoneTickets(); } catch(e){} }, 10000);
