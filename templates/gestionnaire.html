@@ -29,6 +29,7 @@
   }
 
   .ref-card{margin-top:22px}
+  .ref-card.hidden{display:none}
   .ref-layout{display:grid;grid-template-columns:340px 1fr;gap:16px}
   .ref-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
   .ref-tab{border:1px solid #dbe7f0;background:#fff;border-radius:14px;padding:10px 12px;font-weight:700;cursor:pointer}
@@ -75,7 +76,7 @@
           <div class="folder-state" id="folderState" style="margin-top:10px">Chargement...</div>
         </div>
         <div class="actions">
-          <button class="btn secondary" id="refreshBtn" type="button">Rafraîchir</button>
+          <button class="btn secondary" id="toggleReferentielsBtn" type="button">Référentiels</button>
           <button class="btn secondary" id="openDemandeur" type="button">Ouvrir le portail demandeur</button>
           <button class="btn primary" id="exportExcel" type="button">Exporter Excel</button>
         </div>
@@ -83,12 +84,13 @@
 
 
 
-      <section class="card ref-card">
+      <section class="card ref-card hidden" id="referentielsPanel">
         <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;">
           <div>
             <div class="section-title" style="margin-bottom:6px">Référentiels</div>
             <div class="small">Créer et gérer les fiches utilisées par l’application : chargés de projet, clients et contacts.</div>
           </div>
+          <button class="btn secondary" id="closeReferentielsBtn" type="button">Fermer</button>
         </div>
         <div style="height:14px"></div>
         <div class="ref-tabs" id="refTabs">
@@ -989,7 +991,7 @@ refEls.search.addEventListener('input', () => {
 });
 
 renderRefForm();
-loadReferentiels();
+// Les référentiels sont chargés à l'ouverture du panneau pour éviter de ralentir la page.
 
 function setupManagerDrop(){
   const drop=document.getElementById('managerDrop'), inner=document.getElementById('managerDropInner');
@@ -1006,7 +1008,18 @@ function setupManagerDrop(){
   });
 }
 
-document.getElementById('refreshBtn').addEventListener('click',async()=>{await refreshTickets();showNotice('Liste rechargée');});
+const referentielsPanel = document.getElementById('referentielsPanel');
+document.getElementById('toggleReferentielsBtn').addEventListener('click', async ()=>{
+  const isHidden = referentielsPanel.classList.contains('hidden');
+  referentielsPanel.classList.toggle('hidden', !isHidden ? true : false);
+  if(isHidden){
+    await loadReferentiels();
+    referentielsPanel.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+});
+document.getElementById('closeReferentielsBtn').addEventListener('click', ()=>{
+  referentielsPanel.classList.add('hidden');
+});
 document.getElementById('openDemandeur').addEventListener('click',()=>window.open('/demandeur','_blank'));
 document.getElementById('exportExcel').addEventListener('click',()=>window.open('/api/export/excel','_blank'));
 els.searchInput.addEventListener('input',e=>{state.searchTerm=e.target.value;renderTable();});
