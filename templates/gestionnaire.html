@@ -413,6 +413,17 @@ function filteredTickets(){
 async function refreshTickets(){
   const res = await fetch('/api/tickets');
   state.tickets = await res.json();
+
+  const params = new URLSearchParams(window.location.search);
+  const ticketFromUrl = params.get('ticket');
+  if(ticketFromUrl && !window.__ticketFromUrlApplied){
+    const found = state.tickets.find(t => t.id === ticketFromUrl);
+    if(found){
+      state.selectedTicketId = found.id;
+      window.__ticketFromUrlApplied = true;
+    }
+  }
+
   renderTable();
   await renderDetail();
   updateCounts();
