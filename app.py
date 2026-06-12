@@ -633,6 +633,7 @@ def _format_ticket_notification_subject(ticket):
     module = ticket.get("module") or "Ticket"
     dossier = (ticket.get("dossier") or "").strip()
     ref = (ticket.get("ref") or "").strip()
+    preteur = (ticket.get("preteur") or "").strip()
     projet = (ticket.get("expo") or ticket.get("objet") or "").strip()
     lieu_rdv = (ticket.get("lieuRdv") or "").strip()
 
@@ -960,6 +961,7 @@ def api_ticket_notification_url(ticket_id):
     module = ticket.get("module", "")
     dossier = (ticket.get("dossier") or "").strip()
     ref = (ticket.get("ref") or "").strip()
+    preteur = (ticket.get("preteur") or "").strip()
     projet = (ticket.get("expo") or ticket.get("objet") or "").strip()
     lieu_rdv = (ticket.get("lieuRdv") or "").strip()
     date_rdv = (ticket.get("dateRdv") or "").strip()
@@ -969,8 +971,7 @@ def api_ticket_notification_url(ticket_id):
 
     subject = _format_ticket_notification_subject(ticket)
 
-    # Lien direct vers le ticket dans le portail gestionnaire.
-    # On conserve le pwd existant de l'application actuelle pour ouvrir directement la page.
+    # Lien direct vers le ticket dans le portail demandeur, sans mot de passe.
     base_url = request.host_url.rstrip('/')
     ticket_url = f"{base_url}/demandeur?ticket={urllib.parse.quote(ticket_id, safe='')}"
 
@@ -981,7 +982,7 @@ def api_ticket_notification_url(ticket_id):
         <p>
           <strong>Dossier :</strong> {dossier or '-'}<br>
           <strong>N° caisse / Référence :</strong> {ref or '-'}<br>
-          <strong>Chargé de projet :</strong> {charge_projet or '-'}<br>
+          <strong>Prêteur :</strong> {preteur or '-'}<br>
           <strong>Dimensions extérieures :</strong> {fiche.get('dimensionsExt') or '-'}<br>
           <strong>Prix de cession :</strong> {fiche.get('prixCession') or '-'}
         </p>
@@ -1094,7 +1095,7 @@ def _build_notification_content(ticket, ticket_id):
         <p>
           <strong>Dossier :</strong> {esc(dossier)}<br>
           <strong>N° caisse / Référence :</strong> {esc(ref)}<br>
-          <strong>Chargé de projet :</strong> {esc(charge_projet)}<br>
+          <strong>Prêteur :</strong> {esc(preteur)}<br>
           <strong>Dimensions extérieures :</strong> {esc(fiche.get('dimensionsExt'))}<br>
           <strong>Prix de cession :</strong> {esc(fiche.get('prixCession'))}
         </p>
@@ -1158,7 +1159,7 @@ def _build_notification_content(ticket, ticket_id):
 
 Dossier : {dossier or '-'}
 Référence : {ref or '-'}
-Chargé de projet : {charge_projet or '-'}
+Prêteur : {preteur or '-'}
 
 {link_text}
 {ticket_url}
