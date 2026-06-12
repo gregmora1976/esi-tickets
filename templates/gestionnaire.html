@@ -160,6 +160,7 @@
               <button class="btn secondary" id="openFicheBtn" type="button">Ouvrir fiche</button>
               <button class="btn secondary" id="validateAllerVoirBtn" type="button">Valider + calendrier</button>
               <button class="btn secondary" id="exportPdfBtn" type="button">Exporter PDF</button>
+              <button class="btn primary" id="notifyBtn" type="button" style="display:none">Envoyer Notif</button>
               <button class="btn secondary" id="editTicketBtn" type="button">Modifier</button>
               <button class="btn primary" id="saveTicketBtn" type="button" style="display:none">Enregistrer</button>
               <button class="btn secondary" id="cancelEditBtn" type="button" style="display:none">Annuler</button>
@@ -491,6 +492,8 @@ async function renderDetail(){
     els.detailGrid.innerHTML='<div class="info"><div class="k">Info</div><div class="v">Clique sur une ligne du tableau pour voir le détail.</div></div>';
     els.requestFiles.innerHTML='<div class="small">Aucun fichier.</div>';
     els.managerSheetBox.innerHTML='<div class="small">Aucune feuille de caisse déposée.</div>';
+    const notifyBtn = document.getElementById('notifyBtn');
+    if(notifyBtn) notifyBtn.style.display = 'none';
     return;
   }
   if(ticket.module === 'Fiche de caisse'){
@@ -594,10 +597,14 @@ async function renderDetail(){
   const editBtn = document.getElementById('editTicketBtn');
   const saveBtn = document.getElementById('saveTicketBtn');
   const cancelBtn = document.getElementById('cancelEditBtn');
+  const notifyBtn = document.getElementById('notifyBtn');
   if(editBtn && saveBtn && cancelBtn){
     editBtn.style.display = state.editMode ? 'none' : 'inline-block';
     saveBtn.style.display = state.editMode ? 'inline-block' : 'none';
     cancelBtn.style.display = state.editMode ? 'inline-block' : 'none';
+  }
+  if(notifyBtn){
+    notifyBtn.style.display = (!state.editMode && ticket.status === 'Terminé') ? 'inline-block' : 'none';
   }
 
   els.requestFiles.innerHTML='';
@@ -754,6 +761,30 @@ async function saveEditedTicket(){
   await refreshTickets();
   showNotice('Ticket modifié');
 }
+
+
+async function openNotificationEmail(){
+  const ticket=state.tickets.find(t=>t.id===state.selectedTicketId);
+  if(!ticket){showNotice('Sélectionne un ticket.');return;}
+  if(ticket.status !== 'Terminé'){
+    showNotice('La notification est disponible uniquement pour un ticket terminé.');
+    return;
+  }
+
+  try{
+    const res = await fetch(`/api/tickets/${encodeURIComponent(ticket.id)}/notification-url`);
+    const data = await res.json();
+    if(!res.ok){
+      showNotice(data.error || 'Impossible de préparer la notification');
+      return;
+    }
+    window.open(data.outlook_url, '_blank');
+    showNotice('Mail Outlook préparé');
+  }catch(e){
+    showNotice('Erreur ouverture Outlook : ' + (e.message || e));
+  }
+}
+
 
 async function validateAllerVoir(){
   const ticket=state.tickets.find(t=>t.id===state.selectedTicketId);
@@ -1056,6 +1087,7 @@ document.getElementById('saveTicketBtn').addEventListener('click', saveEditedTic
 document.getElementById('cancelEditBtn').addEventListener('click', cancelEditTicket);
 
 
+document.getElementById('notifyBtn').addEventListener('click', openNotificationEmail);
 document.getElementById('exportPdfBtn').addEventListener('click', ()=>{
   const ticket=state.tickets.find(t=>t.id===state.selectedTicketId);
   if(!ticket){showNotice('Sélectionne un ticket.');return;}
