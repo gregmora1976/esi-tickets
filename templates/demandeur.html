@@ -238,12 +238,15 @@
   
   
 <script>
+const urlParams = new URLSearchParams(window.location.search);
 const state = {
   currentModule:'caisse',
   filesCaisse:[],
   filesDevis:[],
   filesAllerVoir:[],
-  doneSearch:''
+  doneSearch:'',
+  directTicketId: urlParams.get('ticket') || '',
+  directTicketOpened: false
 };
 
 const els = {
@@ -289,6 +292,12 @@ function activateModule(module){
   els.formDevis.classList.toggle('hidden', !isDevis);
   els.formAllerVoir.classList.toggle('hidden', !isAllerVoir);
   els.successBox.classList.remove('show');
+}
+function moduleKeyFromTicketModule(module){
+  if(module === 'Fiche de caisse') return 'caisse';
+  if(module === 'Demande de devis') return 'devis';
+  if(module === 'Demande Aller voir') return 'aller-voir';
+  return 'caisse';
 }
 function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -819,6 +828,17 @@ function closeDoneTicketDetails(){
 async function renderDoneTickets(){
   try{
     const allTickets = await readTicketsFromFolder();
+
+    if(state.directTicketId && !state.directTicketOpened){
+      const directTicket = (allTickets || []).find(t => String(t.id || '') === String(state.directTicketId));
+      if(directTicket && directTicket.module){
+        const targetModule = moduleKeyFromTicketModule(directTicket.module);
+        if(state.currentModule !== targetModule){
+          activateModule(targetModule);
+        }
+      }
+    }
+
     const expectedModule =
       state.currentModule === 'caisse'
         ? 'Fiche de caisse'
@@ -832,6 +852,10 @@ async function renderDoneTickets(){
     }
 
     done.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+
+    const ticketToOpen = (state.directTicketId && !state.directTicketOpened)
+      ? done.find(t => String(t.id || '') === String(state.directTicketId))
+      : null;
 
     els.doneList.innerHTML = '';
     if(!done.length){
@@ -907,6 +931,11 @@ async function renderDoneTickets(){
 
       item.appendChild(actionRow);
       els.doneList.appendChild(item);
+    }
+
+    if(ticketToOpen){
+      state.directTicketOpened = true;
+      setTimeout(() => openDoneTicketDetails(ticketToOpen), 150);
     }
   }catch(e){
     console.error('Erreur lecture tickets terminés', e);
