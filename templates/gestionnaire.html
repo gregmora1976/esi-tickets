@@ -783,14 +783,9 @@ async function openNotificationEmail(){
   }
 
   try{
-    const res = await fetch(`/api/tickets/${encodeURIComponent(ticket.id)}/notification-url`);
-    const data = await res.json();
-    if(!res.ok){
-      showNotice(data.error || 'Impossible de préparer la notification');
-      return;
-    }
-    window.open(data.outlook_url, '_blank');
-    showNotice('Mail Outlook préparé');
+    const url = `/api/tickets/${encodeURIComponent(ticket.id)}/notification-eml`;
+    window.open(url, '_blank');
+    showNotice('Brouillon Outlook téléchargé');
   }catch(e){
     showNotice('Erreur ouverture Outlook : ' + (e.message || e));
   }
