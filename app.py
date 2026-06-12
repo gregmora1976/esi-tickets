@@ -1071,6 +1071,7 @@ def _build_notification_content(ticket, ticket_id):
     module = ticket.get("module", "")
     dossier = (ticket.get("dossier") or "").strip()
     ref = (ticket.get("ref") or "").strip()
+    preteur = (ticket.get("preteur") or "").strip()
     projet = (ticket.get("expo") or ticket.get("objet") or "").strip()
     lieu_rdv = (ticket.get("lieuRdv") or "").strip()
     date_rdv = (ticket.get("dateRdv") or "").strip()
