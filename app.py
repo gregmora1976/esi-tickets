@@ -626,19 +626,27 @@ def api_toggle_referentiel(kind, item_id):
 # Notifications email Outlook / Microsoft 365
 # -----------------------------------------------------------------------------
 def _format_ticket_notification_subject(ticket):
+    """Prépare l'objet métier du mail de notification, sans numéro interne de ticket."""
     module = ticket.get("module") or "Ticket"
-    ticket_id = ticket.get("id") or ""
+    dossier = (ticket.get("dossier") or "").strip()
+    ref = (ticket.get("ref") or "").strip()
+    projet = (ticket.get("expo") or ticket.get("objet") or "").strip()
+    lieu_rdv = (ticket.get("lieuRdv") or "").strip()
 
     if module == "Fiche de caisse":
-        prefix = "Fiche de caisse terminée"
-    elif module == "Demande de devis":
-        prefix = "Demande de devis terminée"
-    elif module == "Demande Aller voir":
-        prefix = "Aller voir terminé"
-    else:
-        prefix = "Ticket terminé"
+        suffix = " ".join([x for x in [dossier, ref] if x]).strip()
+        return f"[ESI Tickets] Fiche de caisse terminée - {suffix}".strip()
 
-    return f"{prefix} - {ticket_id}".strip()
+    if module == "Demande de devis":
+        suffix = " ".join([x for x in [dossier, projet] if x]).strip()
+        return f"[ESI Tickets] Demande de devis terminée - {suffix}".strip()
+
+    if module == "Demande Aller voir":
+        suffix = " ".join([x for x in [dossier, lieu_rdv or projet] if x]).strip()
+        return f"[ESI Tickets] Aller voir terminé - {suffix}".strip()
+
+    suffix = dossier or projet or ref
+    return f"[ESI Tickets] Ticket terminé - {suffix}".strip()
 
 
 def _find_project_manager_email(charge_projet):
@@ -926,12 +934,125 @@ def api_update_status(ticket_id):
     ticket['updatedAt'] = datetime.now().isoformat()
     save_ticket(ticket)
 
-    # Envoi uniquement au premier passage vers le statut final "Terminé".
-    # Si le mail échoue, le ticket reste bien sauvegardé : l'erreur est visible dans les logs Render.
-    if ancien_statut != 'Terminé' and nouveau_statut == 'Terminé':
-        envoyer_notification_fin_ticket(ticket)
-
+    # L'envoi automatique SMTP est volontairement désactivé.
+    # La notification se prépare maintenant via Outlook Web avec le bouton "Envoyer Notif".
     return jsonify({'ok': True})
+
+
+@app.route('/api/tickets/<ticket_id>/notification-url')
+def api_ticket_notification_url(ticket_id):
+    """Prépare une URL Outlook Web préremplie pour envoyer la notification manuellement."""
+    ticket = load_ticket(ticket_id)
+    if not ticket:
+        return jsonify({'error': 'Ticket introuvable'}), 404
+
+    charge_projet = (ticket.get("chargeProjet") or "").strip()
+    email_dest = _find_project_manager_email(charge_projet)
+
+    if not email_dest:
+        return jsonify({
+            'error': "Aucun email trouvé pour le chargé de projet dans les référentiels."
+        }), 404
+
+    module = ticket.get("module", "")
+    dossier = ticket.get("dossier", "")
+    ref = ticket.get("ref", "")
+    projet = ticket.get("expo") or ticket.get("objet") or ""
+    lieu_rdv = ticket.get("lieuRdv", "")
+    date_rdv = ticket.get("dateRdv", "")
+    heure_rdv = ticket.get("heureRdv", "")
+    commentaire = ticket.get("commentaire", "")
+    fiche = ticket.get("fiche") or {}
+
+    subject = _format_ticket_notification_subject(ticket)
+
+    if module == "Fiche de caisse":
+        body = f"""Bonjour,
+
+La fiche de caisse suivante a été finalisée :
+
+Dossier : {dossier}
+N° caisse / Référence : {ref}
+Chargé de projet : {charge_projet}
+Dimensions extérieures : {fiche.get('dimensionsExt') or '-'}
+Prix de cession : {fiche.get('prixCession') or '-'}
+
+Les documents associés sont disponibles dans ESI Tickets.
+
+Cordialement,
+
+ESI Fine Art
+"""
+    elif module == "Demande de devis":
+        body = f"""Bonjour,
+
+La demande de devis suivante a été finalisée :
+
+Client / Dossier : {dossier}
+Projet : {projet}
+Chargé de projet : {charge_projet}
+
+Commentaire :
+{commentaire or '-'}
+
+Les documents associés sont disponibles dans ESI Tickets.
+
+Cordialement,
+
+ESI Fine Art
+"""
+    elif module == "Demande Aller voir":
+        body = f"""Bonjour,
+
+La demande Aller voir suivante a été finalisée :
+
+Client / Dossier : {dossier}
+Projet : {projet}
+Lieu de rendez-vous : {lieu_rdv}
+Date / heure : {date_rdv} {heure_rdv}
+Chargé de projet : {charge_projet}
+
+Commentaire :
+{commentaire or '-'}
+
+Les documents associés sont disponibles dans ESI Tickets.
+
+Cordialement,
+
+ESI Fine Art
+"""
+    else:
+        body = f"""Bonjour,
+
+La demande suivante a été finalisée :
+
+Client / Dossier : {dossier}
+Projet : {projet}
+Chargé de projet : {charge_projet}
+
+Les documents associés sont disponibles dans ESI Tickets.
+
+Cordialement,
+
+ESI Fine Art
+"""
+
+    params = urllib.parse.urlencode({
+        "to": email_dest,
+        "subject": subject,
+        "body": body
+    })
+
+    outlook_url = "https://outlook.office.com/mail/deeplink/compose?" + params
+
+    return jsonify({
+        'ok': True,
+        'to': email_dest,
+        'subject': subject,
+        'body': body,
+        'outlook_url': outlook_url
+    })
+
 
 @app.route('/api/tickets/<ticket_id>/manager-sheet', methods=['POST'])
 def api_manager_sheet(ticket_id):
