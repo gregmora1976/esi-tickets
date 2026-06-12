@@ -1,6 +1,8 @@
 from flask import Flask, render_template, jsonify, request, send_file, abort, redirect, url_for
 from pathlib import Path
 import json, webbrowser, os, urllib.request, urllib.parse
+import smtplib
+from email.mime.text import MIMEText
 from datetime import datetime
 
 APP_DIR = Path(__file__).resolve().parent
@@ -619,6 +621,134 @@ def api_toggle_referentiel(kind, item_id):
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
+
+# -----------------------------------------------------------------------------
+# Notifications email Outlook / Microsoft 365
+# -----------------------------------------------------------------------------
+def _format_ticket_notification_subject(ticket):
+    module = ticket.get("module") or "Ticket"
+    ticket_id = ticket.get("id") or ""
+
+    if module == "Fiche de caisse":
+        prefix = "Fiche de caisse terminée"
+    elif module == "Demande de devis":
+        prefix = "Demande de devis terminée"
+    elif module == "Demande Aller voir":
+        prefix = "Aller voir terminé"
+    else:
+        prefix = "Ticket terminé"
+
+    return f"{prefix} - {ticket_id}".strip()
+
+
+def _find_project_manager_email(charge_projet):
+    """Retrouve l'email du chargé de projet depuis le référentiel Supabase."""
+    charge_projet = (charge_projet or "").strip()
+    if not charge_projet or charge_projet == "-":
+        return ""
+
+    # Recherche exacte sur le nom enregistré dans le ticket.
+    nom_encode = urllib.parse.quote(charge_projet, safe='')
+    rows = supabase_rest_request(
+        "GET",
+        "project_managers",
+        f"select=nom,email&nom=eq.{nom_encode}&limit=1"
+    ) or []
+
+    if rows and rows[0].get("email"):
+        return (rows[0].get("email") or "").strip()
+
+    # Secours : recherche souple si le nom contient une différence d'espace ou de casse.
+    pattern = "*" + charge_projet.replace("*", "") + "*"
+    pattern_encode = urllib.parse.quote(pattern, safe='*')
+    rows = supabase_rest_request(
+        "GET",
+        "project_managers",
+        f"select=nom,email&nom=ilike.{pattern_encode}&limit=1"
+    ) or []
+
+    if rows and rows[0].get("email"):
+        return (rows[0].get("email") or "").strip()
+
+    return ""
+
+
+def envoyer_notification_fin_ticket(ticket):
+    """Envoie un email au chargé de projet quand un ticket passe au statut Terminé."""
+    try:
+        print("[MAIL] Début envoi notification ticket terminé")
+
+        charge_projet = (ticket.get("chargeProjet") or "").strip()
+        print("[MAIL] Chargé projet =", charge_projet)
+
+        email_dest = _find_project_manager_email(charge_projet)
+        print("[MAIL] Destinataire =", email_dest or "NON TROUVÉ")
+
+        if not email_dest:
+            print(f"[MAIL] Aucun email trouvé pour le chargé de projet : {charge_projet}")
+            return False
+
+        smtp_host = os.getenv("SMTP_HOST")
+        smtp_port = int(os.getenv("SMTP_PORT", "587"))
+        smtp_user = os.getenv("SMTP_USER")
+        smtp_password = os.getenv("SMTP_PASSWORD")
+
+        if not smtp_host or not smtp_user or not smtp_password:
+            print("[MAIL] Configuration SMTP manquante : vérifier SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD dans Render")
+            return False
+
+        ticket_id = ticket.get("id", "")
+        module = ticket.get("module", "")
+        dossier = ticket.get("dossier", "")
+        ref = ticket.get("ref", "")
+        projet = ticket.get("expo") or ticket.get("objet") or ""
+        lieu_rdv = ticket.get("lieuRdv", "")
+        date_rdv = ticket.get("dateRdv", "")
+        heure_rdv = ticket.get("heureRdv", "")
+        commentaire = ticket.get("commentaire", "")
+
+        sujet = _format_ticket_notification_subject(ticket)
+
+        corps = f"""Bonjour,
+
+Le ticket suivant vient d'être terminé :
+
+Numéro ticket : {ticket_id}
+Type : {module}
+Dossier / Client : {dossier}
+Référence / N° caisse : {ref}
+Projet / Expo : {projet}
+Chargé de projet : {charge_projet}
+Lieu RDV : {lieu_rdv}
+Date RDV : {date_rdv} {heure_rdv}
+
+Commentaire :
+{commentaire or '-'}
+
+Le document est disponible dans ESI Tickets.
+
+Cordialement,
+ESI Tickets
+"""
+
+        msg = MIMEText(corps, "plain", "utf-8")
+        msg["Subject"] = sujet
+        msg["From"] = smtp_user
+        msg["To"] = email_dest
+
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
+
+        print(f"[MAIL] Notification envoyée à {email_dest}")
+        return True
+
+    except Exception as e:
+        print(f"[MAIL] Erreur envoi notification : {e}")
+        return False
+
+
 @app.route('/')
 def index():
     return redirect(url_for('demandeur'))
@@ -786,10 +916,21 @@ def api_update_status(ticket_id):
     ticket = load_ticket(ticket_id)
     if not ticket:
         return jsonify({'error': 'Ticket introuvable'}), 404
+
+    ancien_statut = ticket.get('status')
+
     data = request.get_json(silent=True) or {}
-    ticket['status'] = data.get('status', ticket.get('status'))
+    nouveau_statut = data.get('status', ancien_statut)
+
+    ticket['status'] = nouveau_statut
     ticket['updatedAt'] = datetime.now().isoformat()
     save_ticket(ticket)
+
+    # Envoi uniquement au premier passage vers le statut final "Terminé".
+    # Si le mail échoue, le ticket reste bien sauvegardé : l'erreur est visible dans les logs Render.
+    if ancien_statut != 'Terminé' and nouveau_statut == 'Terminé':
+        envoyer_notification_fin_ticket(ticket)
+
     return jsonify({'ok': True})
 
 @app.route('/api/tickets/<ticket_id>/manager-sheet', methods=['POST'])
