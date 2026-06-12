@@ -1035,8 +1035,6 @@ def api_ticket_notification_url(ticket_id):
     {link_text}
   </a>
 </p>
-<p>Cordialement,</p>
-<p>ESI Fine Art</p>
 </body>
 </html>"""
 
@@ -1151,9 +1149,6 @@ def _build_notification_content(ticket, ticket_id):
     {html.escape(link_text)}
   </a>
 </p>
-<p style="font-size:12px;color:#64748b;">Lien direct :<br>{html.escape(ticket_url)}</p>
-<p>Cordialement,</p>
-<p>ESI Fine Art</p>
 </body>
 </html>"""
 
@@ -1168,9 +1163,6 @@ Chargé de projet : {charge_projet or '-'}
 {link_text}
 {ticket_url}
 
-Cordialement,
-
-ESI Fine Art
 """
 
     return {
