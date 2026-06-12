@@ -955,92 +955,94 @@ def api_ticket_notification_url(ticket_id):
         }), 404
 
     module = ticket.get("module", "")
-    dossier = ticket.get("dossier", "")
-    ref = ticket.get("ref", "")
-    projet = ticket.get("expo") or ticket.get("objet") or ""
-    lieu_rdv = ticket.get("lieuRdv", "")
-    date_rdv = ticket.get("dateRdv", "")
-    heure_rdv = ticket.get("heureRdv", "")
+    dossier = (ticket.get("dossier") or "").strip()
+    ref = (ticket.get("ref") or "").strip()
+    projet = (ticket.get("expo") or ticket.get("objet") or "").strip()
+    lieu_rdv = (ticket.get("lieuRdv") or "").strip()
+    date_rdv = (ticket.get("dateRdv") or "").strip()
+    heure_rdv = (ticket.get("heureRdv") or "").strip()
     commentaire = ticket.get("commentaire", "")
     fiche = ticket.get("fiche") or {}
 
     subject = _format_ticket_notification_subject(ticket)
 
+    # Lien direct vers le ticket dans le portail gestionnaire.
+    # On conserve le pwd existant de l'application actuelle pour ouvrir directement la page.
+    base_url = request.host_url.rstrip('/')
+    ticket_url = f"{base_url}/gestionnaire?pwd=1234&ticket={urllib.parse.quote(ticket_id, safe='')}"
+
     if module == "Fiche de caisse":
-        body = f"""Bonjour,
-
-La fiche de caisse suivante a été finalisée :
-
-Dossier : {dossier}
-N° caisse / Référence : {ref}
-Chargé de projet : {charge_projet}
-Dimensions extérieures : {fiche.get('dimensionsExt') or '-'}
-Prix de cession : {fiche.get('prixCession') or '-'}
-
-Les documents associés sont disponibles dans ESI Tickets.
-
-Cordialement,
-
-ESI Fine Art
-"""
+        link_text = f"Consulter la fiche de caisse {dossier or ref or ticket_id}"
+        intro = "La fiche de caisse suivante a été finalisée :"
+        details = f"""
+        <p>
+          <strong>Dossier :</strong> {dossier or '-'}<br>
+          <strong>N° caisse / Référence :</strong> {ref or '-'}<br>
+          <strong>Chargé de projet :</strong> {charge_projet or '-'}<br>
+          <strong>Dimensions extérieures :</strong> {fiche.get('dimensionsExt') or '-'}<br>
+          <strong>Prix de cession :</strong> {fiche.get('prixCession') or '-'}
+        </p>
+        """
     elif module == "Demande de devis":
-        body = f"""Bonjour,
-
-La demande de devis suivante a été finalisée :
-
-Client / Dossier : {dossier}
-Projet : {projet}
-Chargé de projet : {charge_projet}
-
-Commentaire :
-{commentaire or '-'}
-
-Les documents associés sont disponibles dans ESI Tickets.
-
-Cordialement,
-
-ESI Fine Art
-"""
+        label = " ".join([x for x in [dossier, projet] if x]).strip() or ticket_id
+        link_text = f"Consulter la demande de devis {label}"
+        intro = "La demande de devis suivante a été finalisée :"
+        details = f"""
+        <p>
+          <strong>Client / Dossier :</strong> {dossier or '-'}<br>
+          <strong>Projet :</strong> {projet or '-'}<br>
+          <strong>Chargé de projet :</strong> {charge_projet or '-'}
+        </p>
+        <p><strong>Commentaire :</strong><br>{(commentaire or '-').replace(chr(10), '<br>')}</p>
+        """
     elif module == "Demande Aller voir":
-        body = f"""Bonjour,
-
-La demande Aller voir suivante a été finalisée :
-
-Client / Dossier : {dossier}
-Projet : {projet}
-Lieu de rendez-vous : {lieu_rdv}
-Date / heure : {date_rdv} {heure_rdv}
-Chargé de projet : {charge_projet}
-
-Commentaire :
-{commentaire or '-'}
-
-Les documents associés sont disponibles dans ESI Tickets.
-
-Cordialement,
-
-ESI Fine Art
-"""
+        label = " ".join([x for x in [dossier, lieu_rdv or projet] if x]).strip() or ticket_id
+        link_text = f"Consulter le dossier {label}"
+        intro = "La demande Aller voir suivante a été finalisée :"
+        details = f"""
+        <p>
+          <strong>Client / Dossier :</strong> {dossier or '-'}<br>
+          <strong>Projet :</strong> {projet or '-'}<br>
+          <strong>Lieu de rendez-vous :</strong> {lieu_rdv or '-'}<br>
+          <strong>Date / heure :</strong> {date_rdv or '-'} {heure_rdv or ''}<br>
+          <strong>Chargé de projet :</strong> {charge_projet or '-'}
+        </p>
+        <p><strong>Commentaire :</strong><br>{(commentaire or '-').replace(chr(10), '<br>')}</p>
+        """
     else:
-        body = f"""Bonjour,
+        label = " ".join([x for x in [dossier, projet] if x]).strip() or ticket_id
+        link_text = f"Consulter le ticket {label}"
+        intro = "La demande suivante a été finalisée :"
+        details = f"""
+        <p>
+          <strong>Client / Dossier :</strong> {dossier or '-'}<br>
+          <strong>Projet :</strong> {projet or '-'}<br>
+          <strong>Chargé de projet :</strong> {charge_projet or '-'}
+        </p>
+        """
 
-La demande suivante a été finalisée :
+    body_html = f"""<html>
+<body>
+<p>Bonjour,</p>
+<p>{intro}</p>
+{details}
+<p>Les documents associés sont disponibles dans ESI Tickets.</p>
+<p>
+  <a href=\"{ticket_url}\" style=\"background:#0284c7;color:#ffffff;padding:10px 16px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;\">
+    {link_text}
+  </a>
+</p>
+<p>Cordialement,</p>
+<p>ESI Fine Art</p>
+</body>
+</html>"""
 
-Client / Dossier : {dossier}
-Projet : {projet}
-Chargé de projet : {charge_projet}
-
-Les documents associés sont disponibles dans ESI Tickets.
-
-Cordialement,
-
-ESI Fine Art
-"""
-
+    # Outlook Web accepte le paramètre body dans le deeplink compose.
+    # Le contenu HTML permet d'afficher un lien avec un libellé propre au lieu d'une URL brute.
     params = urllib.parse.urlencode({
         "to": email_dest,
         "subject": subject,
-        "body": body
+        "body": body_html
     })
 
     outlook_url = "https://outlook.office.com/mail/deeplink/compose?" + params
@@ -1049,8 +1051,10 @@ ESI Fine Art
         'ok': True,
         'to': email_dest,
         'subject': subject,
-        'body': body,
-        'outlook_url': outlook_url
+        'body': body_html,
+        'outlook_url': outlook_url,
+        'ticket_url': ticket_url,
+        'link_text': link_text
     })
 
 
