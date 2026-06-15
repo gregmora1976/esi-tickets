@@ -985,7 +985,7 @@ def api_ticket_notification_url(ticket_id):
           <strong>Prêteur :</strong> {preteur or '-'}<br>
           <strong>Dimensions extérieures :</strong> {fiche.get('dimensionsExt') or '-'}<br>
           <strong>Prix de cession :</strong> {fiche.get('prixCession') or '-'}<br>
-          <strong>Date mise à dispo :</strong> {(ticket.get('updatedAt') or '')[:10]}
+          <strong>Date mise à dispo :</strong> {datetime.fromisoformat(ticket.get('updatedAt')).strftime('%d/%m/%Y') if ticket.get('updatedAt') else '-'}
         </p>
         """
     elif module == "Demande de devis":
@@ -1100,7 +1100,7 @@ def _build_notification_content(ticket, ticket_id):
           <strong>Prêteur :</strong> {esc(preteur)}<br>
           <strong>Dimensions extérieures :</strong> {esc(fiche.get('dimensionsExt'))}<br>
           <strong>Prix de cession :</strong> {esc(fiche.get('prixCession'))}<br>
-          <strong>Date mise à dispo :</strong> {esc((ticket.get('updatedAt') or '')[:10])}
+          <strong>Date mise à dispo :</strong> {esc(datetime.fromisoformat(ticket.get('updatedAt')).strftime('%d/%m/%Y') if ticket.get('updatedAt') else '-')}
         </p>
         """
     elif module == "Demande de devis":
