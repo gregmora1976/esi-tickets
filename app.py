@@ -647,7 +647,7 @@ def _format_ticket_notification_subject(ticket):
 
     if module == "Demande Aller voir":
         suffix = " ".join([x for x in [dossier, lieu_rdv or projet] if x]).strip()
-        return f"[ESI Tickets] Aller voir validé - {suffix}".strip()
+        return f"[ESI Tickets] Aller voir finalisé - {suffix}".strip()
 
     suffix = dossier or projet or ref
     return f"[ESI Tickets] Ticket terminé - {suffix}".strip()
@@ -1001,138 +1001,36 @@ def api_ticket_notification_url(ticket_id):
         <p><strong>Commentaire :</strong><br>{(commentaire or '-').replace(chr(10), '<br>')}</p>
         """
     elif module == "Demande Aller voir":
-        label = " ".join([x for x in [dossier, lieu_rdv or projet] if x]).strip() or ticket_id
-        link_text = f"Consulter le dossier {label}"
-        intro = "Le créneau suivant a été validé :"
-        date_rdv_fr = datetime.fromisoformat(date_rdv).strftime('%d/%m/%Y') if date_rdv and date_rdv != '-' else '-'
-        details = f"""
-        <p>
-          <strong>Client / Dossier :</strong> {dossier or '-'}<br>
-          <strong>Projet :</strong> {projet or '-'}<br>
-          <strong>Lieu de rendez-vous :</strong> {lieu_rdv or '-'}<br>
-          <strong>Date :</strong> {date_rdv_fr}<br>
-          <strong>Heure :</strong> {heure_rdv or '-'}<br>
-          <strong>Prêteur :</strong> {preteur or '-'}
-        </p>
-        <p>Le rendez-vous est désormais confirmé.</p>
-        """
-    else:
         label = " ".join([x for x in [dossier, projet] if x]).strip() or ticket_id
-        link_text = f"Consulter le ticket {label}"
-        intro = "La demande suivante a été finalisée :"
-        details = f"""
-        <p>
-          <strong>Client / Dossier :</strong> {dossier or '-'}<br>
-          <strong>Projet :</strong> {projet or '-'}<br>
-          <strong>Chargé de projet :</strong> {charge_projet or '-'}
-        </p>
-        """
-
-    body_html = f"""<html>
-<body>
-<p>Bonjour,</p>
-<p>{intro}</p>
-{details}
-<p>Les documents associés sont disponibles dans ESI Tickets.</p>
-<p>
-  <a href=\"{ticket_url}\" style=\"background:#0284c7;color:#ffffff;padding:10px 16px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;\">
-    {link_text}
-  </a>
-</p>
-</body>
-</html>"""
-
-    # Outlook Web accepte le paramètre body dans le deeplink compose.
-    # Le contenu HTML permet d'afficher un lien avec un libellé propre au lieu d'une URL brute.
-    params = urllib.parse.urlencode({
-        "to": email_dest,
-        "subject": subject,
-        "body": body_html
-    })
-
-    outlook_url = "https://outlook.office.com/mail/deeplink/compose?" + params
-
-    return jsonify({
-        'ok': True,
-        'to': email_dest,
-        'subject': subject,
-        'body': body_html,
-        'outlook_url': outlook_url,
-        'ticket_url': ticket_url,
-        'link_text': link_text
-    })
-
-
-def _build_notification_content(ticket, ticket_id):
-    """Construit les éléments de notification en HTML pour un brouillon .eml Outlook."""
-    charge_projet = (ticket.get("chargeProjet") or "").strip()
-    email_dest = _find_project_manager_email(charge_projet)
-
-    if not email_dest:
-        return None, "Aucun email trouvé pour le chargé de projet dans les référentiels."
-
-    module = ticket.get("module", "")
-    dossier = (ticket.get("dossier") or "").strip()
-    ref = (ticket.get("ref") or "").strip()
-    preteur = (ticket.get("preteur") or "").strip()
-    projet = (ticket.get("expo") or ticket.get("objet") or "").strip()
-    lieu_rdv = (ticket.get("lieuRdv") or "").strip()
-    date_rdv = (ticket.get("dateRdv") or "").strip()
-    heure_rdv = (ticket.get("heureRdv") or "").strip()
-    commentaire = ticket.get("commentaire", "")
-    fiche = ticket.get("fiche") or {}
-
-    subject = _format_ticket_notification_subject(ticket)
-    base_url = request.host_url.rstrip('/')
-    ticket_url = f"{base_url}/demandeur?ticket={urllib.parse.quote(ticket_id, safe='')}"
-
-    def esc(value):
-        return html.escape(str(value or "-"))
-
-    def nl2br(value):
-        return html.escape(str(value or "-")).replace("\n", "<br>")
-
-    if module == "Fiche de caisse":
-        link_text = f"Consulter la fiche de caisse {dossier}-{ref}"
-        intro = "La fiche de caisse suivante a été commandée :"
-        details = f"""
-        <p>
-          <strong>Dossier :</strong> {esc(dossier)}<br>
-          <strong>N° caisse / Référence :</strong> {esc(ref)}<br>
-          <strong>Prêteur :</strong> {esc(preteur)}<br>
-          <strong>Dimensions extérieures :</strong> {esc(fiche.get('dimensionsExt'))}<br>
-          <strong>Prix de cession :</strong> {esc(fiche.get('prixCession'))}<br>
-          <strong>Date mise à dispo :</strong> {esc(datetime.fromisoformat(ticket.get('dateEmballage')).strftime('%d/%m/%Y') if ticket.get('dateEmballage') and ticket.get('dateEmballage') != '-' else '-')}
-        </p>
-        """
-    elif module == "Demande de devis":
-        label = " ".join([x for x in [dossier, projet] if x]).strip() or ticket_id
-        link_text = f"Consulter la demande de devis {label}"
-        intro = "La demande de devis suivante a été finalisée :"
-        details = f"""
-        <p>
-          <strong>Client / Dossier :</strong> {esc(dossier)}<br>
-          <strong>Projet :</strong> {esc(projet)}<br>
-          <strong>Chargé de projet :</strong> {esc(charge_projet)}
-        </p>
-        <p><strong>Commentaire :</strong><br>{nl2br(commentaire)}</p>
-        """
-    elif module == "Demande Aller voir":
-        label = " ".join([x for x in [dossier, lieu_rdv or projet] if x]).strip() or ticket_id
         link_text = f"Consulter le dossier {label}"
-        intro = "Le créneau suivant a été validé :"
         date_rdv_fr = datetime.fromisoformat(date_rdv).strftime('%d/%m/%Y') if date_rdv and date_rdv != '-' else '-'
-        details = f"""
-        <p>
-          <strong>Client / Dossier :</strong> {esc(dossier)}<br>
-          <strong>Projet :</strong> {esc(projet)}<br>
-          <strong>Lieu de rendez-vous :</strong> {esc(lieu_rdv)}<br>
-          <strong>Date :</strong> {esc(date_rdv_fr)}<br>
-          <strong>Heure :</strong> {esc(heure_rdv)}<br>
-          <strong>Prêteur :</strong> {esc(preteur)}
-        </p>
-        <p>Le rendez-vous est désormais confirmé.</p>
-        """
+
+        if notification_mode == 'validation':
+            subject = f"[ESI Tickets] Créneau Aller voir validé - {label}".strip()
+            intro = "Le créneau suivant a été validé :"
+            details = f"""
+            <p>
+              <strong>Client / Dossier :</strong> {esc(dossier)}<br>
+              <strong>Projet :</strong> {esc(projet)}<br>
+              <strong>Lieu de rendez-vous :</strong> {esc(lieu_rdv)}<br>
+              <strong>Date :</strong> {esc(date_rdv_fr)}<br>
+              <strong>Heure :</strong> {esc(heure_rdv)}<br>
+              <strong>Prêteur :</strong> {esc(preteur)}
+            </p>
+            <p>Le rendez-vous est désormais confirmé.</p>
+            """
+        else:
+            intro = "La demande Aller Voir suivante a été finalisée :"
+            details = f"""
+            <p>
+              <strong>Client / Dossier :</strong> {esc(dossier)}<br>
+              <strong>Projet :</strong> {esc(projet)}<br>
+              <strong>Lieu de rendez-vous :</strong> {esc(lieu_rdv)}<br>
+              <strong>Date :</strong> {esc(date_rdv_fr)}<br>
+              <strong>Heure :</strong> {esc(heure_rdv)}<br>
+              <strong>Prêteur :</strong> {esc(preteur)}
+            </p>
+            """
     else:
         label = " ".join([x for x in [dossier, projet] if x]).strip() or ticket_id
         link_text = f"Consulter le ticket {label}"
@@ -1144,6 +1042,10 @@ def _build_notification_content(ticket, ticket_id):
           <strong>Chargé de projet :</strong> {esc(charge_projet)}
         </p>
         """
+
+    documents_line = ""
+    if not (module == "Demande Aller voir" and notification_mode == "validation"):
+        documents_line = "<p>Les documents associés sont disponibles dans ESI Tickets.</p>"
 
     body_html = f"""<!doctype html>
 <html>
@@ -1151,7 +1053,7 @@ def _build_notification_content(ticket, ticket_id):
 <p>Bonjour,</p>
 <p>{html.escape(intro)}</p>
 {details}
-<p>Les documents associés sont disponibles dans ESI Tickets.</p>
+{documents_line}
 <p>
   <a href="{html.escape(ticket_url, quote=True)}" style="background:#0284c7;color:#ffffff;padding:10px 16px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">
     {html.escape(link_text)}
@@ -1190,7 +1092,8 @@ def api_ticket_notification_eml(ticket_id):
     if not ticket:
         return jsonify({'error': 'Ticket introuvable'}), 404
 
-    content, error = _build_notification_content(ticket, ticket_id)
+    notification_mode = (request.args.get('mode') or 'final').strip()
+    content, error = _build_notification_content(ticket, ticket_id, notification_mode)
     if error:
         return jsonify({'error': error}), 404
 
