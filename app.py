@@ -647,7 +647,7 @@ def _format_ticket_notification_subject(ticket):
 
     if module == "Demande Aller voir":
         suffix = " ".join([x for x in [dossier, lieu_rdv or projet] if x]).strip()
-        return f"[ESI Tickets] Aller voir terminé - {suffix}".strip()
+        return f"[ESI Tickets] Aller voir validé - {suffix}".strip()
 
     suffix = dossier or projet or ref
     return f"[ESI Tickets] Ticket terminé - {suffix}".strip()
@@ -1003,16 +1003,18 @@ def api_ticket_notification_url(ticket_id):
     elif module == "Demande Aller voir":
         label = " ".join([x for x in [dossier, lieu_rdv or projet] if x]).strip() or ticket_id
         link_text = f"Consulter le dossier {label}"
-        intro = "La demande Aller voir suivante a été finalisée :"
+        intro = "Le créneau suivant a été validé :"
+        date_rdv_fr = datetime.fromisoformat(date_rdv).strftime('%d/%m/%Y') if date_rdv and date_rdv != '-' else '-'
         details = f"""
         <p>
           <strong>Client / Dossier :</strong> {dossier or '-'}<br>
           <strong>Projet :</strong> {projet or '-'}<br>
           <strong>Lieu de rendez-vous :</strong> {lieu_rdv or '-'}<br>
-          <strong>Date / heure :</strong> {date_rdv or '-'} {heure_rdv or ''}<br>
-          <strong>Chargé de projet :</strong> {charge_projet or '-'}
+          <strong>Date :</strong> {date_rdv_fr}<br>
+          <strong>Heure :</strong> {heure_rdv or '-'}<br>
+          <strong>Prêteur :</strong> {preteur or '-'}
         </p>
-        <p><strong>Commentaire :</strong><br>{(commentaire or '-').replace(chr(10), '<br>')}</p>
+        <p>Le rendez-vous est désormais confirmé.</p>
         """
     else:
         label = " ".join([x for x in [dossier, projet] if x]).strip() or ticket_id
@@ -1118,16 +1120,18 @@ def _build_notification_content(ticket, ticket_id):
     elif module == "Demande Aller voir":
         label = " ".join([x for x in [dossier, lieu_rdv or projet] if x]).strip() or ticket_id
         link_text = f"Consulter le dossier {label}"
-        intro = "La demande Aller voir suivante a été finalisée :"
+        intro = "Le créneau suivant a été validé :"
+        date_rdv_fr = datetime.fromisoformat(date_rdv).strftime('%d/%m/%Y') if date_rdv and date_rdv != '-' else '-'
         details = f"""
         <p>
           <strong>Client / Dossier :</strong> {esc(dossier)}<br>
           <strong>Projet :</strong> {esc(projet)}<br>
           <strong>Lieu de rendez-vous :</strong> {esc(lieu_rdv)}<br>
-          <strong>Date / heure :</strong> {esc((date_rdv + ' ' + heure_rdv).strip())}<br>
-          <strong>Chargé de projet :</strong> {esc(charge_projet)}
+          <strong>Date :</strong> {esc(date_rdv_fr)}<br>
+          <strong>Heure :</strong> {esc(heure_rdv)}<br>
+          <strong>Prêteur :</strong> {esc(preteur)}
         </p>
-        <p><strong>Commentaire :</strong><br>{nl2br(commentaire)}</p>
+        <p>Le rendez-vous est désormais confirmé.</p>
         """
     else:
         label = " ".join([x for x in [dossier, projet] if x]).strip() or ticket_id
