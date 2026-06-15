@@ -824,7 +824,7 @@ async function validateAllerVoir(){
 
     setTimeout(()=>window.URL.revokeObjectURL(url), 1000);
 
-    window.open(`/api/tickets/${encodeURIComponent(ticket.id)}/notification-eml`, '_blank');
+    window.open(`/api/tickets/${encodeURIComponent(ticket.id)}/notification-eml?mode=validation`, '_blank');
 
     await refreshTickets();
     showNotice('Demande validée, calendrier et notification Outlook téléchargés');
