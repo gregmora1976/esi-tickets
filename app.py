@@ -3,7 +3,10 @@ from pathlib import Path
 import json, webbrowser, os, urllib.request, urllib.parse
 import smtplib
 from email.mime.text import MIMEText
+from email.message import EmailMessage
+from email.utils import formatdate, make_msgid
 from datetime import datetime
+import html
 
 APP_DIR = Path(__file__).resolve().parent
 DATA_DIR = APP_DIR / 'data'
@@ -626,19 +629,28 @@ def api_toggle_referentiel(kind, item_id):
 # Notifications email Outlook / Microsoft 365
 # -----------------------------------------------------------------------------
 def _format_ticket_notification_subject(ticket):
+    """Prépare l'objet métier du mail de notification, sans numéro interne de ticket."""
     module = ticket.get("module") or "Ticket"
-    ticket_id = ticket.get("id") or ""
+    dossier = (ticket.get("dossier") or "").strip()
+    ref = (ticket.get("ref") or "").strip()
+    preteur = (ticket.get("preteur") or "").strip()
+    projet = (ticket.get("expo") or ticket.get("objet") or "").strip()
+    lieu_rdv = (ticket.get("lieuRdv") or "").strip()
 
     if module == "Fiche de caisse":
-        prefix = "Fiche de caisse terminée"
-    elif module == "Demande de devis":
-        prefix = "Demande de devis terminée"
-    elif module == "Demande Aller voir":
-        prefix = "Aller voir terminé"
-    else:
-        prefix = "Ticket terminé"
+        suffix = " ".join([x for x in [dossier, ref] if x]).strip()
+        return f"[ESI Tickets] Fiche de caisse terminée - {suffix}".strip()
 
-    return f"{prefix} - {ticket_id}".strip()
+    if module == "Demande de devis":
+        suffix = " ".join([x for x in [dossier, projet] if x]).strip()
+        return f"[ESI Tickets] Demande de devis terminée - {suffix}".strip()
+
+    if module == "Demande Aller voir":
+        suffix = " ".join([x for x in [dossier, lieu_rdv or projet] if x]).strip()
+        return f"[ESI Tickets] Aller voir terminé - {suffix}".strip()
+
+    suffix = dossier or projet or ref
+    return f"[ESI Tickets] Ticket terminé - {suffix}".strip()
 
 
 def _find_project_manager_email(charge_projet):
@@ -671,21 +683,6 @@ def _find_project_manager_email(charge_projet):
         return (rows[0].get("email") or "").strip()
 
     return ""
-
-
-def _format_date_fr(value):
-    """Formate une date ISO ou YYYY-MM-DD en JJ/MM/AAAA."""
-    value = (value or "").strip()
-    if not value or value == "-":
-        return "-"
-    try:
-        if "T" in value:
-            return datetime.fromisoformat(value).strftime("%d/%m/%Y")
-        if len(value) >= 10 and value[4] == "-" and value[7] == "-":
-            return datetime.fromisoformat(value[:10]).strftime("%d/%m/%Y")
-    except Exception:
-        pass
-    return value
 
 
 def envoyer_notification_fin_ticket(ticket):
@@ -941,12 +938,279 @@ def api_update_status(ticket_id):
     ticket['updatedAt'] = datetime.now().isoformat()
     save_ticket(ticket)
 
-    # Envoi uniquement au premier passage vers le statut final "Terminé".
-    # Si le mail échoue, le ticket reste bien sauvegardé : l'erreur est visible dans les logs Render.
-    if ancien_statut != 'Terminé' and nouveau_statut == 'Terminé':
-        envoyer_notification_fin_ticket(ticket)
-
+    # L'envoi automatique SMTP est volontairement désactivé.
+    # La notification se prépare maintenant via Outlook Web avec le bouton "Envoyer Notif".
     return jsonify({'ok': True})
+
+
+@app.route('/api/tickets/<ticket_id>/notification-url')
+def api_ticket_notification_url(ticket_id):
+    """Prépare une URL Outlook Web préremplie pour envoyer la notification manuellement."""
+    ticket = load_ticket(ticket_id)
+    if not ticket:
+        return jsonify({'error': 'Ticket introuvable'}), 404
+
+    charge_projet = (ticket.get("chargeProjet") or "").strip()
+    email_dest = _find_project_manager_email(charge_projet)
+
+    if not email_dest:
+        return jsonify({
+            'error': "Aucun email trouvé pour le chargé de projet dans les référentiels."
+        }), 404
+
+    module = ticket.get("module", "")
+    dossier = (ticket.get("dossier") or "").strip()
+    ref = (ticket.get("ref") or "").strip()
+    preteur = (ticket.get("preteur") or "").strip()
+    projet = (ticket.get("expo") or ticket.get("objet") or "").strip()
+    lieu_rdv = (ticket.get("lieuRdv") or "").strip()
+    date_rdv = (ticket.get("dateRdv") or "").strip()
+    heure_rdv = (ticket.get("heureRdv") or "").strip()
+    commentaire = ticket.get("commentaire", "")
+    fiche = ticket.get("fiche") or {}
+
+    subject = _format_ticket_notification_subject(ticket)
+
+    # Lien direct vers le ticket dans le portail demandeur, sans mot de passe.
+    base_url = request.host_url.rstrip('/')
+    ticket_url = f"{base_url}/demandeur?ticket={urllib.parse.quote(ticket_id, safe='')}"
+
+    if module == "Fiche de caisse":
+        link_text = f"Consulter la fiche de caisse {dossier}-{ref}"
+        intro = "La fiche de caisse suivante a été commandée :"
+        details = f"""
+        <p>
+          <strong>Dossier :</strong> {dossier or '-'}<br>
+          <strong>N° caisse / Référence :</strong> {ref or '-'}<br>
+          <strong>Prêteur :</strong> {preteur or '-'}<br>
+          <strong>Dimensions extérieures :</strong> {fiche.get('dimensionsExt') or '-'}<br>
+          <strong>Prix de cession :</strong> {fiche.get('prixCession') or '-'}<br>
+          <strong>Date mise à dispo :</strong> {(ticket.get('updatedAt') or '')[:10]}
+        </p>
+        """
+    elif module == "Demande de devis":
+        label = " ".join([x for x in [dossier, projet] if x]).strip() or ticket_id
+        link_text = f"Consulter la demande de devis {label}"
+        intro = "La demande de devis suivante a été finalisée :"
+        details = f"""
+        <p>
+          <strong>Client / Dossier :</strong> {dossier or '-'}<br>
+          <strong>Projet :</strong> {projet or '-'}<br>
+          <strong>Chargé de projet :</strong> {charge_projet or '-'}
+        </p>
+        <p><strong>Commentaire :</strong><br>{(commentaire or '-').replace(chr(10), '<br>')}</p>
+        """
+    elif module == "Demande Aller voir":
+        label = " ".join([x for x in [dossier, lieu_rdv or projet] if x]).strip() or ticket_id
+        link_text = f"Consulter le dossier {label}"
+        intro = "La demande Aller voir suivante a été finalisée :"
+        details = f"""
+        <p>
+          <strong>Client / Dossier :</strong> {dossier or '-'}<br>
+          <strong>Projet :</strong> {projet or '-'}<br>
+          <strong>Lieu de rendez-vous :</strong> {lieu_rdv or '-'}<br>
+          <strong>Date / heure :</strong> {date_rdv or '-'} {heure_rdv or ''}<br>
+          <strong>Chargé de projet :</strong> {charge_projet or '-'}
+        </p>
+        <p><strong>Commentaire :</strong><br>{(commentaire or '-').replace(chr(10), '<br>')}</p>
+        """
+    else:
+        label = " ".join([x for x in [dossier, projet] if x]).strip() or ticket_id
+        link_text = f"Consulter le ticket {label}"
+        intro = "La demande suivante a été finalisée :"
+        details = f"""
+        <p>
+          <strong>Client / Dossier :</strong> {dossier or '-'}<br>
+          <strong>Projet :</strong> {projet or '-'}<br>
+          <strong>Chargé de projet :</strong> {charge_projet or '-'}
+        </p>
+        """
+
+    body_html = f"""<html>
+<body>
+<p>Bonjour,</p>
+<p>{intro}</p>
+{details}
+<p>Les documents associés sont disponibles dans ESI Tickets.</p>
+<p>
+  <a href=\"{ticket_url}\" style=\"background:#0284c7;color:#ffffff;padding:10px 16px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;\">
+    {link_text}
+  </a>
+</p>
+</body>
+</html>"""
+
+    # Outlook Web accepte le paramètre body dans le deeplink compose.
+    # Le contenu HTML permet d'afficher un lien avec un libellé propre au lieu d'une URL brute.
+    params = urllib.parse.urlencode({
+        "to": email_dest,
+        "subject": subject,
+        "body": body_html
+    })
+
+    outlook_url = "https://outlook.office.com/mail/deeplink/compose?" + params
+
+    return jsonify({
+        'ok': True,
+        'to': email_dest,
+        'subject': subject,
+        'body': body_html,
+        'outlook_url': outlook_url,
+        'ticket_url': ticket_url,
+        'link_text': link_text
+    })
+
+
+def _build_notification_content(ticket, ticket_id):
+    """Construit les éléments de notification en HTML pour un brouillon .eml Outlook."""
+    charge_projet = (ticket.get("chargeProjet") or "").strip()
+    email_dest = _find_project_manager_email(charge_projet)
+
+    if not email_dest:
+        return None, "Aucun email trouvé pour le chargé de projet dans les référentiels."
+
+    module = ticket.get("module", "")
+    dossier = (ticket.get("dossier") or "").strip()
+    ref = (ticket.get("ref") or "").strip()
+    preteur = (ticket.get("preteur") or "").strip()
+    projet = (ticket.get("expo") or ticket.get("objet") or "").strip()
+    lieu_rdv = (ticket.get("lieuRdv") or "").strip()
+    date_rdv = (ticket.get("dateRdv") or "").strip()
+    heure_rdv = (ticket.get("heureRdv") or "").strip()
+    commentaire = ticket.get("commentaire", "")
+    fiche = ticket.get("fiche") or {}
+
+    subject = _format_ticket_notification_subject(ticket)
+    base_url = request.host_url.rstrip('/')
+    ticket_url = f"{base_url}/demandeur?ticket={urllib.parse.quote(ticket_id, safe='')}"
+
+    def esc(value):
+        return html.escape(str(value or "-"))
+
+    def nl2br(value):
+        return html.escape(str(value or "-")).replace("\n", "<br>")
+
+    if module == "Fiche de caisse":
+        link_text = f"Consulter la fiche de caisse {dossier}-{ref}"
+        intro = "La fiche de caisse suivante a été commandée :"
+        details = f"""
+        <p>
+          <strong>Dossier :</strong> {esc(dossier)}<br>
+          <strong>N° caisse / Référence :</strong> {esc(ref)}<br>
+          <strong>Prêteur :</strong> {esc(preteur)}<br>
+          <strong>Dimensions extérieures :</strong> {esc(fiche.get('dimensionsExt'))}<br>
+          <strong>Prix de cession :</strong> {esc(fiche.get('prixCession'))}<br>
+          <strong>Date mise à dispo :</strong> {esc((ticket.get('updatedAt') or '')[:10])}
+        </p>
+        """
+    elif module == "Demande de devis":
+        label = " ".join([x for x in [dossier, projet] if x]).strip() or ticket_id
+        link_text = f"Consulter la demande de devis {label}"
+        intro = "La demande de devis suivante a été finalisée :"
+        details = f"""
+        <p>
+          <strong>Client / Dossier :</strong> {esc(dossier)}<br>
+          <strong>Projet :</strong> {esc(projet)}<br>
+          <strong>Chargé de projet :</strong> {esc(charge_projet)}
+        </p>
+        <p><strong>Commentaire :</strong><br>{nl2br(commentaire)}</p>
+        """
+    elif module == "Demande Aller voir":
+        label = " ".join([x for x in [dossier, lieu_rdv or projet] if x]).strip() or ticket_id
+        link_text = f"Consulter le dossier {label}"
+        intro = "La demande Aller voir suivante a été finalisée :"
+        details = f"""
+        <p>
+          <strong>Client / Dossier :</strong> {esc(dossier)}<br>
+          <strong>Projet :</strong> {esc(projet)}<br>
+          <strong>Lieu de rendez-vous :</strong> {esc(lieu_rdv)}<br>
+          <strong>Date / heure :</strong> {esc((date_rdv + ' ' + heure_rdv).strip())}<br>
+          <strong>Chargé de projet :</strong> {esc(charge_projet)}
+        </p>
+        <p><strong>Commentaire :</strong><br>{nl2br(commentaire)}</p>
+        """
+    else:
+        label = " ".join([x for x in [dossier, projet] if x]).strip() or ticket_id
+        link_text = f"Consulter le ticket {label}"
+        intro = "La demande suivante a été finalisée :"
+        details = f"""
+        <p>
+          <strong>Client / Dossier :</strong> {esc(dossier)}<br>
+          <strong>Projet :</strong> {esc(projet)}<br>
+          <strong>Chargé de projet :</strong> {esc(charge_projet)}
+        </p>
+        """
+
+    body_html = f"""<!doctype html>
+<html>
+<body style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;line-height:1.45;">
+<p>Bonjour,</p>
+<p>{html.escape(intro)}</p>
+{details}
+<p>Les documents associés sont disponibles dans ESI Tickets.</p>
+<p>
+  <a href="{html.escape(ticket_url, quote=True)}" style="background:#0284c7;color:#ffffff;padding:10px 16px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">
+    {html.escape(link_text)}
+  </a>
+</p>
+</body>
+</html>"""
+
+    body_text = f"""Bonjour,
+
+{intro}
+
+Dossier : {dossier or '-'}
+Référence : {ref or '-'}
+Prêteur : {preteur or '-'}
+
+{link_text}
+{ticket_url}
+
+"""
+
+    return {
+        "to": email_dest,
+        "subject": subject,
+        "body_html": body_html,
+        "body_text": body_text,
+        "ticket_url": ticket_url,
+        "link_text": link_text,
+    }, None
+
+
+@app.route('/api/tickets/<ticket_id>/notification-eml')
+def api_ticket_notification_eml(ticket_id):
+    """Génère un brouillon .eml HTML à ouvrir dans Outlook Desktop."""
+    ticket = load_ticket(ticket_id)
+    if not ticket:
+        return jsonify({'error': 'Ticket introuvable'}), 404
+
+    content, error = _build_notification_content(ticket, ticket_id)
+    if error:
+        return jsonify({'error': error}), 404
+
+    msg = EmailMessage()
+    msg['To'] = content['to']
+    msg['Subject'] = content['subject']
+    msg['Date'] = formatdate(localtime=True)
+    msg['Message-ID'] = make_msgid(domain='esi-tickets.local')
+    # Indique à Outlook que le fichier doit s'ouvrir comme un message non envoyé.
+    msg['X-Unsent'] = '1'
+    msg.set_content(content['body_text'])
+    msg.add_alternative(content['body_html'], subtype='html')
+
+    filename_base = "notification_" + safe_filename(ticket_id)
+    eml_bytes = msg.as_bytes()
+
+    import io
+    return send_file(
+        io.BytesIO(eml_bytes),
+        as_attachment=True,
+        download_name=f"{filename_base}.eml",
+        mimetype='message/rfc822'
+    )
+
 
 @app.route('/api/tickets/<ticket_id>/manager-sheet', methods=['POST'])
 def api_manager_sheet(ticket_id):
