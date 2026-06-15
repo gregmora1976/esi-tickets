@@ -1220,8 +1220,17 @@ def api_ticket_notification_eml(ticket_id):
     msg['Message-ID'] = make_msgid(domain='esi-tickets.local')
     # Indique à Outlook que le fichier doit s'ouvrir comme un message non envoyé.
     msg['X-Unsent'] = '1'
-    msg.set_content(content['body_text'])
-    msg.add_alternative(content['body_html'], subtype='html')
+    msg.set_content(
+        content['body_text'],
+        charset='utf-8',
+        cte='8bit'
+    )
+    msg.add_alternative(
+        content['body_html'],
+        subtype='html',
+        charset='utf-8',
+        cte='8bit'
+    )
 
     filename_base = "notification_" + safe_filename(ticket_id)
     eml_bytes = msg.as_bytes()
