@@ -175,10 +175,10 @@
             <form id="form-aller-voir" class="card hidden">
               <div class="section-title">Formulaire demande Aller voir</div>
               <div class="grid">
-                <div class="field"><label>N° dossier / Client</label><input class="input" id="aller-client" autocomplete="off" /></div>
+                <div class="field"><label>N° dossier</label><input class="input" id="aller-client" /></div>
                 <div class="field"><label>Chargé de projet</label><input class="input" id="aller-charge-projet" autocomplete="off" /></div>
                 <div class="field"><label>Nom du projet</label><input class="input" id="aller-projet" /></div>
-                <div class="field"><label>Lieu de RDV (nom + adresse complète)</label><input class="input" id="aller-lieu-rdv" /></div>
+                <div class="field"><label>Lieu de RDV (nom + adresse complète)</label><input class="input" id="aller-lieu-rdv" autocomplete="off" /></div>
                 <div class="field"><label>Contact (nom + téléphone)</label><input class="input" id="aller-contact-rdv" autocomplete="off" /></div>
                 <div class="field"><label>Date du RDV</label><input class="input" id="aller-date-rdv" type="date" /></div>
                 <div class="field"><label>Heure du RDV</label><input class="input" id="aller-heure-rdv" type="time" /></div>
@@ -433,6 +433,12 @@ function setupAllReferenceAutocompletes(){
     sub: item => [item.adresse, item.contact_nom, item.contact_telephone].filter(Boolean).join(' · '),
     value: item => item.nom || ''
   };
+  const clientLieuConfig = {
+    searchFields: ['nom'],
+    main: item => item.nom || '',
+    sub: item => item.adresse || '',
+    value: item => [item.nom, item.adresse].filter(Boolean).join(' ')
+  };
   const contactConfig = {
     searchFields: ['nom'],
     main: item => item.nom || '',
@@ -443,9 +449,8 @@ function setupAllReferenceAutocompletes(){
   ['caisse-charge-projet','devis-charge-projet','aller-charge-projet'].forEach(id =>
     setupReferenceAutocomplete(id, () => referentielCache.projectManagers, pmConfig)
   );
-  ['devis-client','aller-client'].forEach(id =>
-    setupReferenceAutocomplete(id, () => referentielCache.clients, clientConfig)
-  );
+  setupReferenceAutocomplete('devis-client', () => referentielCache.clients, clientConfig);
+  setupReferenceAutocomplete('aller-lieu-rdv', () => referentielCache.clients, clientLieuConfig);
   setupReferenceAutocomplete('aller-contact-rdv', () => referentielCache.contacts, contactConfig);
 }
 
@@ -980,13 +985,13 @@ const referenceFieldConfigs = {
     sub: item => [item.adresse, item.contact_nom, item.contact_telephone].filter(Boolean).join(' · '),
     value: item => item.nom || ''
   },
-  'aller-client': {
+  'aller-lieu-rdv': {
     cacheKey: 'clients',
     endpoint: '/api/referentiels/clients',
     searchFields: ['nom'],
     main: item => item.nom || '',
-    sub: item => [item.adresse, item.contact_nom, item.contact_telephone].filter(Boolean).join(' · '),
-    value: item => item.nom || ''
+    sub: item => item.adresse || '',
+    value: item => [item.nom, item.adresse].filter(Boolean).join(' ')
   },
   'caisse-preteur': {
     cacheKey: 'clients',
