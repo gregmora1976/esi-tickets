@@ -657,6 +657,10 @@ async function renderDetail(){
   } else {
     els.managerSheetBox.innerHTML='<div class="small">Aucune feuille de caisse déposée.</div>';
   }
+
+  if(state.editMode){
+    setTimeout(applyEditAutocompletes, 50);
+  }
 }
 function updateCounts(){
 
@@ -722,6 +726,7 @@ function startEditTicket(){
   if(!ticket){showNotice('Sélectionne un ticket.');return;}
   state.editMode = true;
   renderDetail();
+  setTimeout(applyEditAutocompletes, 50);
 }
 
 function cancelEditTicket(){
@@ -882,6 +887,60 @@ const refConfig = {
 };
 
 const refState = { kind: 'project-managers', items: [], search: '' };
+
+// Cache utilisé pour proposer les référentiels directement dans les champs de modification.
+// Le champ Prêteur reste volontairement libre pour l'instant.
+const autocompleteCache = {
+  projectManagers: [],
+  clients: [],
+  contacts: []
+};
+
+async function loadAutocompleteCache(){
+  try{
+    let res = await fetch('/api/referentiels/project-managers?limit=500');
+    autocompleteCache.projectManagers = await res.json();
+
+    res = await fetch('/api/referentiels/clients?limit=500');
+    autocompleteCache.clients = await res.json();
+
+    res = await fetch('/api/referentiels/contacts?limit=500');
+    autocompleteCache.contacts = await res.json();
+  }catch(e){
+    console.log('Impossible de charger le cache des référentiels', e);
+  }
+}
+
+function attachAutocomplete(inputId, data){
+  const input = document.getElementById(inputId);
+  if(!input) return;
+
+  const dlId = inputId + '_list';
+  let dl = document.getElementById(dlId);
+
+  if(!dl){
+    dl = document.createElement('datalist');
+    dl.id = dlId;
+    document.body.appendChild(dl);
+  }
+
+  input.setAttribute('list', dlId);
+  dl.innerHTML = '';
+
+  (data || []).forEach(item => {
+    if(!item || !item.nom) return;
+    const option = document.createElement('option');
+    option.value = item.nom;
+    dl.appendChild(option);
+  });
+}
+
+function applyEditAutocompletes(){
+  // Champs reliés aux référentiels en mode modification.
+  attachAutocomplete('edit-chargeProjet', autocompleteCache.projectManagers);
+  attachAutocomplete('edit-dossier', autocompleteCache.clients);
+  attachAutocomplete('edit-contactRdv', autocompleteCache.contacts);
+}
 const refEls = {
   tabs: document.querySelectorAll('#refTabs .ref-tab'),
   formTitle: document.getElementById('refFormTitle'),
@@ -996,6 +1055,8 @@ async function saveReferentiel(){
     showNotice(`${cfg.label.charAt(0).toUpperCase() + cfg.label.slice(1)} enregistré`);
     renderRefForm();
     await loadReferentiels();
+    await loadAutocompleteCache();
+    if(state.editMode) setTimeout(applyEditAutocompletes, 50);
     closeReferentielsModal();
   }catch(e){
     showNotice(e.message || 'Erreur enregistrement référentiel');
@@ -1104,6 +1165,7 @@ document.getElementById('exportPdfBtn').addEventListener('click', ()=>{
 
 setupManagerDrop();
 loadConfigStatus();
+loadAutocompleteCache();
 refreshTickets();
 setInterval(refreshTickets, 10000);
 </script>
