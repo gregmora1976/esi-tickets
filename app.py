@@ -1,1707 +1,856 @@
-from flask import Flask, render_template, jsonify, request, send_file, abort, redirect, url_for
-from pathlib import Path
-import json, webbrowser, os, urllib.request, urllib.parse
-import smtplib
-from email.mime.text import MIMEText
-from email.message import EmailMessage
-from email.utils import formatdate, make_msgid
+from __future__ import annotations
+
+import json
+import mimetypes
+import os
+import math
+import tempfile
+import shutil
+import unicodedata
 from datetime import datetime
-import html
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import unquote, urlparse, parse_qs
 
-APP_DIR = Path(__file__).resolve().parent
-DATA_DIR = APP_DIR / 'data'
-CONFIG_FILE = DATA_DIR / 'config.json'
-TICKETS_SUB = 'tickets'
-FILES_SUB = 'fichiers'
-SUPABASE_URL = (os.getenv("SUPABASE_URL") or "").rstrip("/")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY") or ""
-SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "uploads")
+from matrice_caisses.t1 import T1Inputs, calculer_t1, options_t1
+from matrice_caisses.t1_t6 import T1T6Inputs, OeuvreT1T6, calculer_t1_t6, options_t1_t6
+from matrice_caisses.mrt import MRTInputs, calculer_mrt, options_mrt
+from matrice_caisses.t1_t3_mrt import T1T3MRTInputs, MRTItem, calculer_t1_t3_mrt, options_t1_t3_mrt
+from matrice_caisses.t_glissieres import TGlissieresInputs, TableauGlissiere, calculer_t_glissieres, options_t_glissieres
+from matrice_caisses.t_separations_mousse import TSeparationsMousseInputs, OeuvreSeparationMousse, calculer_t_separations_mousse, options_t_separations_mousse
+from matrice_caisses.objet1 import Objet1Inputs, calculer_objet1, options_objet1
 
-app = Flask(__name__, template_folder='templates', static_folder='static')
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import mm
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
 
-def safe_filename(name):
-    """Nettoie le nom du fichier pour Supabase tout en gardant le vrai nom affiché côté appli."""
-    name = str(name or "fichier")
-    return "".join(
-        c if c.isalnum() or c in "._-" else "_"
-        for c in name
-    )
+ROOT = Path(__file__).resolve().parent
+DATA_DIR = ROOT / "data"
+HOST = os.getenv("HOST", "0.0.0.0")
+PORT = int(os.getenv("PORT", "5000"))
+
+CLASSIQUES = {
+    "Tableaux": ["T1", "T1-T6", "MRT", "T1-T3 MRT", "T à Glissières", "T Séparations mousse"],
+    "Objets": ["Objet 1", "Objet 2 à 6", "Tapisserie"],
+    "Caissons / Wrapp": ["Wrapp"],
+}
+MIGRES = {"T1", "T1-T6", "MRT", "T1-T3 MRT", "T à Glissières", "T Séparations mousse", "Objet 1"}
 
 
-def supabase_upload_bytes(storage_path, content, content_type="application/octet-stream"):
-    """Envoie un fichier dans Supabase Storage sans dépendre du SDK Python."""
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        raise RuntimeError("Variables SUPABASE_URL ou SUPABASE_SERVICE_KEY manquantes")
+def load_onglets():
+    path = DATA_DIR / "onglets_excel.json"
+    if not path.exists():
+        return []
+    return json.loads(path.read_text(encoding="utf-8"))
 
-    safe_path = urllib.parse.quote(storage_path, safe="/")
-    url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{safe_path}"
 
-    req = urllib.request.Request(
-        url,
-        data=content,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {SUPABASE_KEY}",
-            "apikey": SUPABASE_KEY,
-            "Content-Type": content_type or "application/octet-stream",
-            "x-upsert": "true"
-        }
-    )
-
-    print("[SUPABASE UPLOAD URL]", url)
-    print("[SUPABASE UPLOAD BUCKET]", SUPABASE_BUCKET)
-    print("[SUPABASE UPLOAD PATH]", safe_path)
-
+def as_float(value, default=None):
+    if value in (None, ""):
+        return default
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            return resp.read()
-    except urllib.error.HTTPError as e:
-        try:
-            body = e.read().decode("utf-8", errors="replace")
-        except Exception:
-            body = ""
-        print(f"[SUPABASE UPLOAD ERROR] HTTP {e.code} - {e.reason} - {body}")
-        raise
-
-def supabase_download_bytes(storage_path):
-    """Télécharge un fichier depuis Supabase Storage."""
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        raise RuntimeError("Variables SUPABASE_URL ou SUPABASE_SERVICE_KEY manquantes")
-
-    safe_path = urllib.parse.quote(storage_path, safe="/")
-    url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{safe_path}"
-
-    req = urllib.request.Request(
-        url,
-        method="GET",
-        headers={
-            "Authorization": f"Bearer {SUPABASE_KEY}",
-            "apikey": SUPABASE_KEY
-        }
-    )
-
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        return resp.read()
+        return float(str(value).replace(",", "."))
+    except Exception:
+        return default
 
 
-def supabase_signed_download_url(storage_path, expires_in=300):
-    """Crée une URL signée Supabase Storage pour éviter de faire transiter le fichier par Render."""
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        raise RuntimeError("Variables SUPABASE_URL ou SUPABASE_SERVICE_KEY manquantes")
+def fmt(value):
+    if isinstance(value, (int, float)):
+        return round(value, 2)
+    return value
 
-    safe_path = urllib.parse.quote(storage_path, safe="/")
-    url = f"{SUPABASE_URL}/storage/v1/object/sign/{SUPABASE_BUCKET}/{safe_path}"
 
-    payload = json.dumps({"expiresIn": int(expires_in)}).encode("utf-8")
-    req = urllib.request.Request(
-        url,
-        data=payload,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {SUPABASE_KEY}",
-            "apikey": SUPABASE_KEY,
-            "Content-Type": "application/json"
-        }
-    )
+def calculate_sheet(sheet: str, data: dict):
+    if sheet == "T1":
+        inputs = T1Inputs(
+            longueur_cm=as_float(data.get("longueur_cm")),
+            epaisseur_cm=as_float(data.get("epaisseur_cm")),
+            hauteur_cm=as_float(data.get("hauteur_cm")),
+            type_isolant=data.get("type_isolant") or None,
+            fermeture=data.get("fermeture") or None,
+            peinture=data.get("peinture") or None,
+            tyvek=data.get("tyvek") or None,
+            type_calage=data.get("type_calage") or None,
+            type_contreplaque=data.get("type_contreplaque") or None,
+            garnissage=data.get("garnissage") or None,
+            option_calage=data.get("option_calage") or None,
+            epaisseur_mousse=data.get("epaisseur_mousse") or None,
+        )
+        return calculer_t1(inputs)
+    if sheet == "T1-T6":
+        oeuvres = []
+        for item in data.get("oeuvres", []):
+            oeuvres.append(OeuvreT1T6(
+                longueur_cm=as_float(item.get("longueur_cm")),
+                epaisseur_cm=as_float(item.get("epaisseur_cm")),
+                hauteur_cm=as_float(item.get("hauteur_cm")),
+                type_calage=item.get("type_calage") or None,
+            ))
+        inputs = T1T6Inputs(
+            type_isolant=data.get("type_isolant") or None,
+            fermeture=data.get("fermeture") or None,
+            peinture=data.get("peinture") or None,
+            tyvek=data.get("tyvek") or None,
+            type_contreplaque=data.get("type_contreplaque") or None,
+            garnissage=data.get("garnissage") or None,
+            option_calage=data.get("option_calage") or None,
+            oeuvres=oeuvres,
+        )
+        return calculer_t1_t6(inputs)
 
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        body = json.loads(resp.read().decode("utf-8", errors="replace"))
+    if sheet == "T1-T3 MRT":
+        mrts = []
+        for item in data.get("mrts", []):
+            mrts.append(MRTItem(
+                mode_dimensions=item.get("mode_dimensions") or None,
+                longueur_cm=as_float(item.get("longueur_cm")),
+                epaisseur_cm=as_float(item.get("epaisseur_cm")),
+                hauteur_cm=as_float(item.get("hauteur_cm")),
+                face_mrt=item.get("face_mrt") or None,
+                arriere_mrt=item.get("arriere_mrt") or None,
+            ))
+        inputs = T1T3MRTInputs(
+            type_contreplaque=data.get("type_contreplaque") or None,
+            barres=data.get("barres") or None,
+            garnissage=data.get("garnissage") or None,
+            type_isolant=data.get("type_isolant") or None,
+            fermeture=data.get("fermeture") or None,
+            peinture=data.get("peinture") or None,
+            poignees=data.get("poignees") or None,
+            skis=data.get("skis") or None,
+            option_calage=data.get("option_calage") or None,
+            type_calage=data.get("type_calage") or None,
+            responsable_dossier=data.get("responsable_dossier") or None,
+            client=data.get("client") or None,
+            delai=data.get("delai") or None,
+            mrts=mrts,
+        )
+        return calculer_t1_t3_mrt(inputs)
 
-    signed = body.get("signedURL") or body.get("signedUrl") or body.get("url")
-    if not signed:
-        raise RuntimeError(f"Réponse URL signée invalide : {body}")
-    if signed.startswith("http"):
-        return signed
-    return SUPABASE_URL + "/storage/v1" + signed
+    if sheet == "T à Glissières":
+        tableaux = []
+        for item in data.get("tableaux", []):
+            tableaux.append(TableauGlissiere(
+                inventaire=item.get("inventaire") or None,
+                longueur_cm=as_float(item.get("longueur_cm")),
+                largeur_cm=as_float(item.get("largeur_cm")),
+                hauteur_cm=as_float(item.get("hauteur_cm")),
+                quantite=as_float(item.get("quantite"), 1),
+                intervalle=as_float(item.get("intervalle"), 2.2),
+            ))
+        inputs = TGlissieresInputs(
+            type_contreplaque=data.get("type_contreplaque") or None,
+            barres=data.get("barres") or None,
+            garnissage=data.get("garnissage") or None,
+            type_isolant=data.get("type_isolant") or None,
+            fermeture=data.get("fermeture") or None,
+            peinture=data.get("peinture") or None,
+            poignees=data.get("poignees") or None,
+            skis=data.get("skis") or None,
+            epaisseur_mousse=data.get("epaisseur_mousse") or None,
+            cuvette_au_dessus=data.get("cuvette_au_dessus") or None,
+            responsable_dossier=data.get("responsable_dossier") or None,
+            client=data.get("client") or None,
+            delai=data.get("delai") or None,
+            tableaux=tableaux,
+        )
+        return calculer_t_glissieres(inputs)
 
-def choose_shared_folder():
+    if sheet == "T Séparations mousse":
+        rang1 = []
+        for item in data.get("rang1", []):
+            rang1.append(OeuvreSeparationMousse(
+                longueur_cm=as_float(item.get("longueur_cm")),
+                largeur_cm=as_float(item.get("largeur_cm")),
+                hauteur_cm=as_float(item.get("hauteur_cm")),
+            ))
+        rang2 = []
+        for item in data.get("rang2", []):
+            rang2.append(OeuvreSeparationMousse(
+                longueur_cm=as_float(item.get("longueur_cm")),
+                largeur_cm=as_float(item.get("largeur_cm")),
+                hauteur_cm=as_float(item.get("hauteur_cm")),
+            ))
+        inputs = TSeparationsMousseInputs(
+            type_contreplaque=data.get("type_contreplaque") or None,
+            barres=data.get("barres") or None,
+            garnissage=data.get("garnissage") or None,
+            type_isolant=data.get("type_isolant") or None,
+            fermeture=data.get("fermeture") or None,
+            peinture=data.get("peinture") or None,
+            skis=data.get("skis") or None,
+            poignees=data.get("poignees") or None,
+            separations=data.get("separations") or None,
+            responsable_dossier=data.get("responsable_dossier") or None,
+            client=data.get("client") or None,
+            delai=data.get("delai") or None,
+            rang1=rang1,
+            rang2=rang2,
+        )
+        return calculer_t_separations_mousse(inputs)
+
+    if sheet == "Objet 1":
+        inputs = Objet1Inputs(
+            longueur_cm=as_float(data.get("longueur_cm")),
+            largeur_cm=as_float(data.get("largeur_cm") or data.get("epaisseur_cm")),
+            hauteur_cm=as_float(data.get("hauteur_cm")),
+            type_contreplaque=data.get("type_contreplaque") or None,
+            barres=data.get("barres") or None,
+            garnissage=data.get("garnissage") or None,
+            type_isolant=data.get("type_isolant") or None,
+            fermeture=data.get("fermeture") or None,
+            peinture=data.get("peinture") or None,
+            poignees=data.get("poignees") or None,
+            skis=data.get("skis") or None,
+            cuvette_au_dessus=data.get("cuvette_au_dessus") or None,
+            option=data.get("option") or None,
+            nombre_cote_ouvrant=data.get("nombre_cote_ouvrant") or None,
+            type_calage=data.get("type_calage") or None,
+            nombre_calages=as_float(data.get("nombre_calages")),
+            plateau_interieur=data.get("plateau_interieur") or None,
+            base=data.get("base") or None,
+            responsable_dossier=data.get("responsable_dossier") or None,
+            client=data.get("client") or None,
+        )
+        return calculer_objet1(inputs)
+    if sheet == "MRT":
+        inputs = MRTInputs(
+            longueur_cm=as_float(data.get("longueur_cm")),
+            epaisseur_cm=as_float(data.get("epaisseur_cm")),
+            hauteur_cm=as_float(data.get("hauteur_cm")),
+            mode_dimensions=data.get("mode_dimensions") or None,
+            type_contreplaque=data.get("type_contreplaque") or None,
+            barres=data.get("barres") or None,
+            fermeture=data.get("fermeture") or None,
+            poignees=data.get("poignees") or None,
+            face_mrt=data.get("face_mrt") or None,
+            arriere_mrt=data.get("arriere_mrt") or None,
+            responsable_dossier=data.get("responsable_dossier") or None,
+            client=data.get("client") or None,
+            categorie=data.get("categorie") or None,
+        )
+        return calculer_mrt(inputs)
+    raise ValueError("Ce type de caisse n'est pas encore migré.")
+
+
+def ceil_text(value):
+    if value in (None, ""):
+        return "-"
     try:
-        import tkinter as tk
-        from tkinter import filedialog
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes("-topmost", True)
-        path = filedialog.askdirectory(title="Choisis le dossier partagé ESI Tickets")
-        root.destroy()
-        if path:
-            return path
+        return f"{math.ceil(float(value)):,.0f}".replace(",", " ")
+    except Exception:
+        return str(value or "-")
+
+
+def euro_text(value):
+    txt = ceil_text(value)
+    return "-" if txt == "-" else f"{txt} €"
+
+
+def num_text(value, suffix=""):
+    txt = ceil_text(value)
+    return "-" if txt == "-" else f"{txt}{suffix}"
+
+
+def load_parametres_matiere():
+    """Paramètres modifiables issus de la feuille Prix Matiere."""
+    path = DATA_DIR / "parametres_matiere.json"
+    default = {"marge_cession_percent": 30}
+    if not path.exists():
+        return default
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return {**default, **data}
+    except Exception:
+        return default
+
+
+def taux_marge_cession():
+    params = load_parametres_matiere()
+    value = params.get("marge_cession_percent", 30)
+    try:
+        return float(str(value).replace(",", ".")) / 100.0
+    except Exception:
+        return 0.30
+
+
+def enrich_result_with_cession(result: dict) -> dict:
+    """Ajoute le prix de cession = prix d'achat + marge paramétrable."""
+    enriched = dict(result or {})
+    prix_achat = as_float(enriched.get("prix_vente"), None)
+    marge = taux_marge_cession()
+    if prix_achat is not None:
+        enriched["prix_achat"] = prix_achat
+        enriched["marge_cession_percent"] = round(marge * 100, 4)
+        enriched["prix_cession"] = prix_achat * (1 + marge)
+    return enriched
+
+
+
+def slugify(value: str) -> str:
+    value = str(value or "").strip().lower()
+    value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    out = []
+    for ch in value:
+        if ch.isalnum():
+            out.append(ch)
+        elif ch in (" ", "-", "_", "/", "\\", "."):
+            out.append("_")
+    slug = "".join(out).strip("_")
+    while "__" in slug:
+        slug = slug.replace("__", "_")
+    return slug or "notice"
+
+
+def notice_key(sheet: str, data: dict) -> str:
+    """Clé stable : type de caisse + isolant + calage.
+    Pour les caisses sans champ type_calage, on utilise le champ le plus proche.
+    """
+    isolant = data.get("type_isolant") or "Aucun"
+    calage = (
+        data.get("type_calage")
+        or data.get("separations")
+        or data.get("option_calage")
+        or data.get("base")
+        or "Aucun"
+    )
+    return "|".join([slugify(sheet), slugify(isolant), slugify(calage)])
+
+
+def notices_index_path() -> Path:
+    return DATA_DIR / "notices_index.json"
+
+
+def load_notices_index() -> dict:
+    path = notices_index_path()
+    default = {"notices": []}
+    if not path.exists():
+        return default
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(data, dict) and isinstance(data.get("notices"), list):
+            return data
     except Exception:
         pass
-    return ''
+    return default
 
-def load_config():
-    if CONFIG_FILE.exists():
-        try:
-            return json.loads(CONFIG_FILE.read_text(encoding='utf-8'))
-        except Exception:
-            pass
-    return {}
 
-def save_config(cfg):
+def save_notices_index(index: dict) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    CONFIG_FILE.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding='utf-8')
-
-def ensure_shared_root():
-    root = APP_DIR
-    (root / TICKETS_SUB).mkdir(parents=True, exist_ok=True)
-    (root / FILES_SUB).mkdir(parents=True, exist_ok=True)
-    return root
-
-def tickets_dir():
-    return ensure_shared_root() / TICKETS_SUB
-
-def files_dir():
-    return ensure_shared_root() / FILES_SUB
-
-def ticket_file(ticket_id):
-    return tickets_dir() / f'{ticket_id}.json'
-
-def ticket_folder(ticket_id):
-    path = files_dir() / ticket_id
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    notices_index_path().write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 
-def _as_text(value, default=''):
-    if value is None:
-        return default
-    return str(value)
 
-
-def supabase_rest_request(method, table, query='', payload=None, prefer=None):
-    """Appelle l'API REST Supabase Database sans dépendre du SDK Python."""
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        raise RuntimeError("Variables SUPABASE_URL ou SUPABASE_SERVICE_KEY manquantes")
-
-    url = f"{SUPABASE_URL}/rest/v1/{table}"
-    if query:
-        url += "?" + query.lstrip('?')
-
-    data = None
-    headers = {
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "apikey": SUPABASE_KEY,
-        "Content-Type": "application/json",
-    }
-    if prefer:
-        headers["Prefer"] = prefer
-    elif method.upper() in ("POST", "PATCH", "DELETE"):
-        headers["Prefer"] = "return=representation"
-
-    if payload is not None:
-        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-
-    req = urllib.request.Request(url, data=data, method=method.upper(), headers=headers)
+def render_pdf_first_page_to_png(pdf_path: Path, png_path: Path) -> bool:
+    """Génère un aperçu PNG de la première page du PDF.
+    Compatible Render/Python 3.14 grâce à pypdfium2.
+    """
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            body = resp.read().decode("utf-8", errors="replace")
-            if not body:
-                return None
-            return json.loads(body)
-    except urllib.error.HTTPError as e:
+        import pypdfium2 as pdfium
+        png_path.parent.mkdir(parents=True, exist_ok=True)
+        pdf = pdfium.PdfDocument(str(pdf_path))
+        if len(pdf) == 0:
+            return False
+        page = pdf[0]
+        bitmap = page.render(scale=1.8)
+        image = bitmap.to_pil()
+        if image.mode not in ("RGB", "RGBA"):
+            image = image.convert("RGB")
+        image.save(str(png_path), "PNG")
         try:
-            body = e.read().decode("utf-8", errors="replace")
-        except Exception:
-            body = ""
-        print(f"[SUPABASE DB ERROR] {method} {url} -> HTTP {e.code} {e.reason} {body}")
-        raise RuntimeError(f"Erreur Supabase DB HTTP {e.code}: {body or e.reason}")
-
-
-def init_db():
-    """Vérifie simplement que les tables Supabase répondent."""
-    try:
-        supabase_rest_request("GET", "tickets", "select=id&limit=1")
-        print("[SUPABASE DB] Connexion OK")
-    except Exception as e:
-        print(f"[SUPABASE DB] Connexion impossible : {e}")
-
-
-def _ticket_to_db_row(ticket):
-    return {
-        "id": _as_text(ticket.get("id")),
-        "module": _as_text(ticket.get("module")),
-        "status": _as_text(ticket.get("status")),
-        "created_at": _as_text(ticket.get("createdAt")),
-        "updated_at": _as_text(ticket.get("updatedAt")),
-        "dossier": _as_text(ticket.get("dossier")),
-        "ref": _as_text(ticket.get("ref")),
-        "preteur": _as_text(ticket.get("preteur")),
-        "expo": _as_text(ticket.get("expo")),
-        "objet": _as_text(ticket.get("objet")),
-        "charge_projet": _as_text(ticket.get("chargeProjet")),
-        "type_caisse": _as_text(ticket.get("typeCaisse")),
-        "dimensions": _as_text(ticket.get("dimensions")),
-        "date_emballage": _as_text(ticket.get("dateEmballage")),
-        "prix_devis": _as_text(ticket.get("prixDevis")),
-        "date_rdv": _as_text(ticket.get("dateRdv")),
-        "heure_rdv": _as_text(ticket.get("heureRdv")),
-        "lieu_rdv": _as_text(ticket.get("lieuRdv")),
-        "contact_rdv": _as_text(ticket.get("contactRdv")),
-        "commentaire": _as_text(ticket.get("commentaire")),
-        "validated_at": _as_text(ticket.get("validatedAt")),
-        "raw_json": ticket,
-    }
-
-
-def _ticket_from_db_row(row):
-    return {
-        "id": row.get("id") or "",
-        "module": row.get("module") or "",
-        "status": row.get("status") or "",
-        "createdAt": row.get("created_at") or "",
-        "updatedAt": row.get("updated_at") or "",
-        "dossier": row.get("dossier") or "",
-        "ref": row.get("ref") or "",
-        "preteur": row.get("preteur") or "-",
-        "expo": row.get("expo") or "-",
-        "objet": row.get("objet") or "-",
-        "chargeProjet": row.get("charge_projet") or "-",
-        "typeCaisse": row.get("type_caisse") or "-",
-        "dimensions": row.get("dimensions") or "-",
-        "dateEmballage": row.get("date_emballage") or "-",
-        "prixDevis": row.get("prix_devis") or "-",
-        "dateRdv": row.get("date_rdv") or "-",
-        "heureRdv": row.get("heure_rdv") or "-",
-        "lieuRdv": row.get("lieu_rdv") or "-",
-        "contactRdv": row.get("contact_rdv") or "-",
-        "commentaire": row.get("commentaire") or "",
-        "validatedAt": row.get("validated_at") or "",
-    }
-
-
-def _fiche_to_db_row(ticket_id, fiche):
-    return {
-        "ticket_id": ticket_id,
-        "longueur": _as_text(fiche.get("longueur")),
-        "largeur": _as_text(fiche.get("largeur")),
-        "hauteur": _as_text(fiche.get("hauteur")),
-        "dimensions_ext": _as_text(fiche.get("dimensionsExt")),
-        "prix_achat": _as_text(fiche.get("prixAchat")),
-        "prix_cession": _as_text(fiche.get("prixCession")),
-        "type_caisse_fiche": _as_text(fiche.get("typeCaisseFiche")),
-        "bilan_carbone": _as_text(fiche.get("bilanCarbone")),
-        "poids": _as_text(fiche.get("poids")),
-        "choix_caissier": _as_text(fiche.get("choixCaissier")),
-    }
-
-
-def _fiche_from_db_row(row):
-    return {
-        "longueur": row.get("longueur") or "",
-        "largeur": row.get("largeur") or "",
-        "hauteur": row.get("hauteur") or "",
-        "dimensionsExt": row.get("dimensions_ext") or "",
-        "prixAchat": row.get("prix_achat") or "",
-        "prixCession": row.get("prix_cession") or "",
-        "typeCaisseFiche": row.get("type_caisse_fiche") or "",
-        "bilanCarbone": row.get("bilan_carbone") or "",
-        "poids": row.get("poids") or "",
-        "choixCaissier": row.get("choix_caissier") or "",
-    }
-
-
-def _add_file_to_ticket(ticket, f):
-    item = {
-        "name": f.get("filename") or "",
-        "size": f.get("size") or 0,
-        "path": f.get("storage_path") or ""
-    }
-    if f.get("kind") == "gestionnaire":
-        ticket.setdefault("managerSheets", []).append(item)
-    else:
-        ticket.setdefault("files", []).append(item)
-
-
-def _attach_children(ticket):
-    """Charge les enfants d'un seul ticket. Utilisé pour les actions ciblées."""
-    tid = ticket.get("id")
-    if not tid:
-        return ticket
-
-    safe_tid = urllib.parse.quote(tid, safe='')
-
-    fiches = supabase_rest_request(
-        "GET",
-        "fiches",
-        f"select=*&ticket_id=eq.{safe_tid}&limit=1"
-    ) or []
-    if fiches:
-        ticket["fiche"] = _fiche_from_db_row(fiches[0])
-
-    rows = supabase_rest_request(
-        "GET",
-        "ticket_files",
-        f"select=*&ticket_id=eq.{safe_tid}&order=uploaded_at.asc"
-    ) or []
-
-    ticket["files"] = []
-    ticket["managerSheets"] = []
-    for f in rows:
-        _add_file_to_ticket(ticket, f)
-
-    return ticket
-
-
-def _chunks(values, size=100):
-    for i in range(0, len(values), size):
-        yield values[i:i + size]
-
-
-def _in_filter(values):
-    # Format PostgREST : in.(DEM-001,DEM-002). Les ids internes ne contiennent pas de virgule.
-    return urllib.parse.quote(",".join(values), safe=",-_")
-
-
-def list_tickets(status=None, limit=None):
-    query = "select=*&order=created_at.desc"
-    if status:
-        query += "&status=eq." + urllib.parse.quote(status, safe='')
-    if limit:
-        query += "&limit=" + str(int(limit))
-
-    rows = supabase_rest_request("GET", "tickets", query) or []
-    tickets = [_ticket_from_db_row(row) for row in rows]
-
-    by_id = {t.get("id"): t for t in tickets if t.get("id")}
-    ids = list(by_id.keys())
-    if not ids:
-        return tickets
-
-    # Initialisation des listes pour éviter les champs absents côté interface
-    for t in tickets:
-        t["files"] = []
-        t["managerSheets"] = []
-
-    # Chargement groupé des fiches : au lieu de 1 requête par ticket
-    for part in _chunks(ids):
-        fiches = supabase_rest_request(
-            "GET",
-            "fiches",
-            "select=*&ticket_id=in.(" + _in_filter(part) + ")"
-        ) or []
-        for f in fiches:
-            tid = f.get("ticket_id")
-            if tid in by_id:
-                by_id[tid]["fiche"] = _fiche_from_db_row(f)
-
-    # Chargement groupé des fichiers : au lieu de 1 requête par ticket
-    for part in _chunks(ids):
-        rows_files = supabase_rest_request(
-            "GET",
-            "ticket_files",
-            "select=*&ticket_id=in.(" + _in_filter(part) + ")&order=uploaded_at.asc"
-        ) or []
-        for f in rows_files:
-            tid = f.get("ticket_id")
-            if tid in by_id:
-                _add_file_to_ticket(by_id[tid], f)
-
-    return tickets
-
-
-def next_id(prefix):
-    safe_prefix = urllib.parse.quote(prefix + '-*', safe='*-')
-    rows = supabase_rest_request(
-        "GET",
-        "tickets",
-        f"select=id&id=like.{safe_prefix}&order=id.desc&limit=5000"
-    ) or []
-    nums = []
-    for row in rows:
-        try:
-            nums.append(int(str(row.get("id", "")).split('-')[1]))
+            page.close()
         except Exception:
             pass
-    mx = max(nums) if nums else 0
-    return f"{prefix}-{mx+1:03d}"
-
-
-def save_ticket(ticket):
-    if not ticket.get("id"):
-        raise RuntimeError("Ticket sans ID")
-
-    ticket.setdefault("updatedAt", datetime.now().isoformat())
-
-    # Upsert du ticket principal
-    supabase_rest_request(
-        "POST",
-        "tickets",
-        "on_conflict=id",
-        [_ticket_to_db_row(ticket)],
-        prefer="resolution=merge-duplicates,return=minimal"
-    )
-
-    ticket_id = ticket.get("id")
-    safe_tid = urllib.parse.quote(ticket_id, safe='')
-
-    # Fiche gestionnaire
-    fiche = ticket.get("fiche") or {}
-    if fiche:
-        supabase_rest_request(
-            "POST",
-            "fiches",
-            "on_conflict=ticket_id",
-            [_fiche_to_db_row(ticket_id, fiche)],
-            prefer="resolution=merge-duplicates,return=minimal"
-        )
-    else:
-        supabase_rest_request("DELETE", "fiches", f"ticket_id=eq.{safe_tid}", prefer="return=minimal")
-
-    # Fichiers : on remplace la liste associée au ticket
-    supabase_rest_request("DELETE", "ticket_files", f"ticket_id=eq.{safe_tid}", prefer="return=minimal")
-
-    file_rows = []
-    for fs in ticket.get("files") or []:
-        if fs and fs.get("name"):
-            file_rows.append({
-                "ticket_id": ticket_id,
-                "kind": "demandeur",
-                "filename": _as_text(fs.get("name")),
-                "size": fs.get("size") or 0,
-                "storage_path": _as_text(fs.get("path")),
-            })
-
-    manager_sheets = list(ticket.get("managerSheets") or [])
-    legacy = ticket.get("managerSheet")
-    if legacy and isinstance(legacy, dict) and legacy.get("name"):
-        if not any(x.get("name") == legacy.get("name") for x in manager_sheets):
-            manager_sheets.append(legacy)
-
-    for fs in manager_sheets:
-        if fs and fs.get("name"):
-            file_rows.append({
-                "ticket_id": ticket_id,
-                "kind": "gestionnaire",
-                "filename": _as_text(fs.get("name")),
-                "size": fs.get("size") or 0,
-                "storage_path": _as_text(fs.get("path")),
-            })
-
-    if file_rows:
-        supabase_rest_request("POST", "ticket_files", "", file_rows, prefer="return=minimal")
-
-    print("[SUPABASE DB] Ticket sauvegardé", ticket_id)
-
-
-def load_ticket(ticket_id):
-    safe_tid = urllib.parse.quote(ticket_id, safe='')
-    rows = supabase_rest_request("GET", "tickets", f"select=*&id=eq.{safe_tid}&limit=1") or []
-    if not rows:
-        return None
-    return _attach_children(_ticket_from_db_row(rows[0]))
-
-
-# -----------------------------------------------------------------------------
-# Référentiels métier : chargés de projet, clients, contacts
-# -----------------------------------------------------------------------------
-REFERENTIELS = {
-    "project-managers": {
-        "table": "project_managers",
-        "allowed": ["nom", "email", "telephone", "actif"],
-        "search": ["nom", "email", "telephone"],
-        "required": ["nom"],
-        "defaults": {"actif": True},
-        "order": "nom.asc"
-    },
-    "clients": {
-        "table": "clients",
-        "allowed": ["nom", "adresse", "contact_nom", "contact_email", "contact_telephone", "actif"],
-        "search": ["nom", "adresse", "contact_nom", "contact_email", "contact_telephone"],
-        "required": ["nom"],
-        "defaults": {"actif": True},
-        "order": "nom.asc"
-    },
-    "contacts": {
-        "table": "contacts",
-        "allowed": ["nom", "email", "telephone", "client_nom", "fonction", "actif"],
-        "search": ["nom", "email", "telephone", "client_nom", "fonction"],
-        "required": ["nom"],
-        "defaults": {"actif": True},
-        "order": "nom.asc"
-    }
-}
-
-
-def _referentiel_config(kind):
-    cfg = REFERENTIELS.get(kind)
-    if not cfg:
-        abort(404)
-    return cfg
-
-
-def _clean_referentiel_payload(kind, data, partial=False):
-    cfg = _referentiel_config(kind)
-    data = data or {}
-    payload = {}
-
-    for field in cfg["allowed"]:
-        if field in data:
-            if field == "actif":
-                payload[field] = bool(data.get(field))
-            else:
-                payload[field] = _as_text(data.get(field)).strip()
-
-    if not partial:
-        for field, value in cfg.get("defaults", {}).items():
-            payload.setdefault(field, value)
-
-        missing = [field for field in cfg.get("required", []) if not payload.get(field)]
-        if missing:
-            raise ValueError("Champ obligatoire manquant : " + ", ".join(missing))
-
-    return payload
-
-
-@app.route('/api/referentiels/<kind>', methods=['GET'])
-def api_list_referentiel(kind):
-    cfg = _referentiel_config(kind)
-    q = (request.args.get('q') or '').strip()
-    include_inactive = request.args.get('include_inactive') == '1'
-    limit = request.args.get('limit') or '100'
-
-    query = "select=*"
-    if not include_inactive:
-        query += "&actif=eq.true"
-    if q:
-        pattern = "*" + q.replace("*", "") + "*"
-        parts = []
-        for field in cfg["search"]:
-            parts.append(f"{field}.ilike.{urllib.parse.quote(pattern, safe='*')}")
-        query += "&or=(" + ",".join(parts) + ")"
-    query += "&order=" + urllib.parse.quote(cfg.get("order", "nom.asc"), safe='.,')
-    query += "&limit=" + urllib.parse.quote(str(limit), safe='')
-
-    rows = supabase_rest_request("GET", cfg["table"], query) or []
-    return jsonify(rows)
-
-
-@app.route('/api/referentiels/<kind>', methods=['POST'])
-def api_create_referentiel(kind):
-    cfg = _referentiel_config(kind)
-    data = request.get_json(silent=True) or {}
-    try:
-        payload = _clean_referentiel_payload(kind, data, partial=False)
-    except ValueError as e:
-        return jsonify({'ok': False, 'error': str(e)}), 400
-
-    try:
-        rows = supabase_rest_request("POST", cfg["table"], "", [payload], prefer="return=representation") or []
-        return jsonify({'ok': True, 'item': rows[0] if rows else payload})
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
-
-
-@app.route('/api/referentiels/<kind>/<item_id>', methods=['PUT'])
-def api_update_referentiel(kind, item_id):
-    cfg = _referentiel_config(kind)
-    data = request.get_json(silent=True) or {}
-    try:
-        payload = _clean_referentiel_payload(kind, data, partial=True)
-    except ValueError as e:
-        return jsonify({'ok': False, 'error': str(e)}), 400
-
-    if not payload:
-        return jsonify({'ok': False, 'error': 'Aucune donnée à modifier'}), 400
-
-    safe_id = urllib.parse.quote(str(item_id), safe='')
-    try:
-        rows = supabase_rest_request("PATCH", cfg["table"], f"id=eq.{safe_id}", payload, prefer="return=representation") or []
-        return jsonify({'ok': True, 'item': rows[0] if rows else payload})
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
-
-
-@app.route('/api/referentiels/<kind>/<item_id>/toggle', methods=['PATCH'])
-def api_toggle_referentiel(kind, item_id):
-    cfg = _referentiel_config(kind)
-    data = request.get_json(silent=True) or {}
-    actif = bool(data.get('actif'))
-    safe_id = urllib.parse.quote(str(item_id), safe='')
-    try:
-        rows = supabase_rest_request("PATCH", cfg["table"], f"id=eq.{safe_id}", {"actif": actif}, prefer="return=representation") or []
-        return jsonify({'ok': True, 'item': rows[0] if rows else {'id': item_id, 'actif': actif}})
-    except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
-
-
-# -----------------------------------------------------------------------------
-# Notifications email Outlook / Microsoft 365
-# -----------------------------------------------------------------------------
-def _format_ticket_notification_subject(ticket):
-    """Prépare l'objet métier du mail de notification, sans numéro interne de ticket."""
-    module = ticket.get("module") or "Ticket"
-    dossier = (ticket.get("dossier") or "").strip()
-    ref = (ticket.get("ref") or "").strip()
-    preteur = (ticket.get("preteur") or "").strip()
-    projet = (ticket.get("expo") or ticket.get("objet") or "").strip()
-    lieu_rdv = (ticket.get("lieuRdv") or "").strip()
-
-    if module == "Fiche de caisse":
-        suffix = " ".join([x for x in [dossier, ref] if x]).strip()
-        return f"[ESI Tickets] Fiche de caisse terminée - {suffix}".strip()
-
-    if module == "Demande de devis":
-        suffix = " ".join([x for x in [dossier, projet] if x]).strip()
-        return f"[ESI Tickets] Demande de devis terminée - {suffix}".strip()
-
-    if module == "Demande Aller voir":
-        suffix = " ".join([x for x in [dossier, lieu_rdv or projet] if x]).strip()
-        return f"[ESI Tickets] Aller voir finalisé - {suffix}".strip()
-
-    suffix = dossier or projet or ref
-    return f"[ESI Tickets] Ticket terminé - {suffix}".strip()
-
-
-def _find_project_manager_email(charge_projet):
-    """Retrouve l'email du chargé de projet depuis le référentiel Supabase."""
-    charge_projet = (charge_projet or "").strip()
-    if not charge_projet or charge_projet == "-":
-        return ""
-
-    # Recherche exacte sur le nom enregistré dans le ticket.
-    nom_encode = urllib.parse.quote(charge_projet, safe='')
-    rows = supabase_rest_request(
-        "GET",
-        "project_managers",
-        f"select=nom,email&nom=eq.{nom_encode}&limit=1"
-    ) or []
-
-    if rows and rows[0].get("email"):
-        return (rows[0].get("email") or "").strip()
-
-    # Secours : recherche souple si le nom contient une différence d'espace ou de casse.
-    pattern = "*" + charge_projet.replace("*", "") + "*"
-    pattern_encode = urllib.parse.quote(pattern, safe='*')
-    rows = supabase_rest_request(
-        "GET",
-        "project_managers",
-        f"select=nom,email&nom=ilike.{pattern_encode}&limit=1"
-    ) or []
-
-    if rows and rows[0].get("email"):
-        return (rows[0].get("email") or "").strip()
-
-    return ""
-
-
-def envoyer_notification_fin_ticket(ticket):
-    """Envoie un email au chargé de projet quand un ticket passe au statut Terminé."""
-    try:
-        print("[MAIL] Début envoi notification ticket terminé")
-
-        charge_projet = (ticket.get("chargeProjet") or "").strip()
-        print("[MAIL] Chargé projet =", charge_projet)
-
-        email_dest = _find_project_manager_email(charge_projet)
-        print("[MAIL] Destinataire =", email_dest or "NON TROUVÉ")
-
-        if not email_dest:
-            print(f"[MAIL] Aucun email trouvé pour le chargé de projet : {charge_projet}")
-            return False
-
-        smtp_host = os.getenv("SMTP_HOST")
-        smtp_port = int(os.getenv("SMTP_PORT", "587"))
-        smtp_user = os.getenv("SMTP_USER")
-        smtp_password = os.getenv("SMTP_PASSWORD")
-
-        if not smtp_host or not smtp_user or not smtp_password:
-            print("[MAIL] Configuration SMTP manquante : vérifier SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD dans Render")
-            return False
-
-        ticket_id = ticket.get("id", "")
-        module = ticket.get("module", "")
-        dossier = ticket.get("dossier", "")
-        ref = ticket.get("ref", "")
-        projet = ticket.get("expo") or ticket.get("objet") or ""
-        lieu_rdv = ticket.get("lieuRdv", "")
-        date_rdv = ticket.get("dateRdv", "")
-        heure_rdv = ticket.get("heureRdv", "")
-        commentaire = ticket.get("commentaire", "")
-
-        sujet = _format_ticket_notification_subject(ticket)
-
-        corps = f"""Bonjour,
-
-Le ticket suivant vient d'être terminé :
-
-Numéro ticket : {ticket_id}
-Type : {module}
-Dossier / Client : {dossier}
-Référence / N° caisse : {ref}
-Projet / Expo : {projet}
-Chargé de projet : {charge_projet}
-Lieu RDV : {lieu_rdv}
-Date RDV : {date_rdv} {heure_rdv}
-
-Commentaire :
-{commentaire or '-'}
-
-Le document est disponible dans ESI Tickets.
-
-Cordialement,
-ESI Tickets
-"""
-
-        msg = MIMEText(corps, "plain", "utf-8")
-        msg["Subject"] = sujet
-        msg["From"] = smtp_user
-        msg["To"] = email_dest
-
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_password)
-            server.send_message(msg)
-
-        print(f"[MAIL] Notification envoyée à {email_dest}")
-        return True
-
-    except Exception as e:
-        print(f"[MAIL] Erreur envoi notification : {e}")
+        try:
+            pdf.close()
+        except Exception:
+            pass
+        return png_path.exists()
+    except Exception:
         return False
 
-
-@app.route('/')
-def index():
-    return redirect(url_for('demandeur'))
-
-@app.route('/demandeur')
-def demandeur():
-    return render_template('demandeur.html')
-
-@app.route('/gestionnaire')
-def gestionnaire():
-    from flask import request, redirect, url_for
-    if request.args.get('pwd') != '1234':
-        return redirect(url_for('login'))
-    return render_template('gestionnaire.html')
-
-@app.route('/login', methods=['GET','POST'])
-def login():
-    from flask import request, redirect, render_template_string
-    error = ''
-    if request.method == 'POST':
-        if request.form.get('password') == '1234':
-            return redirect('/gestionnaire?pwd=1234')
-        error = 'Mot de passe incorrect'
-    return render_template_string("""<!DOCTYPE html>
-<html lang='fr'>
-<head>
-<meta charset='UTF-8'>
-<meta name='viewport' content='width=device-width, initial-scale=1.0'>
-<title>Connexion gestionnaire</title>
-<style>
-body{font-family:Arial,Helvetica,sans-serif;background:linear-gradient(180deg,#eef6fb 0%,#f6f8fb 100%);margin:0;display:flex;align-items:center;justify-content:center;height:100vh;color:#1e293b}
-.card{background:#fff;border:1px solid #dbe7f0;border-radius:20px;padding:28px;box-shadow:0 12px 30px rgba(15,23,42,.08);width:360px}
-h1{margin:0 0 10px;font-size:28px} p{margin:0 0 18px;color:#64748b}
-input{width:100%;padding:12px 14px;border:1px solid #dbe7f0;border-radius:14px;font-size:15px;box-sizing:border-box}
-button{margin-top:14px;width:100%;padding:12px 14px;border:none;border-radius:14px;background:linear-gradient(135deg,#0ea5e9 0%, #0284c7 100%);color:#fff;font-weight:700;cursor:pointer}
-.err{margin-top:12px;color:#b91c1c;font-size:13px}
-</style>
-</head>
-<body>
-  <form class='card' method='post'>
-    <h1>Gestion Tickets</h1>
-    <p>Accès protégé par mot de passe</p>
-    <input type='password' name='password' placeholder='Mot de passe' autofocus />
-    <button type='submit'>Entrer</button>
-    {% if error %}<div class='err'>{{ error }}</div>{% endif %}
-  </form>
-</body>
-</html>""", error=error)
+def notice_record_to_doc(record: dict):
+    if not record:
+        return None
+    rel_pdf = record.get("pdf") or ""
+    pdf = ROOT / rel_pdf
+    preview_rel = record.get("preview") or ""
+    preview = ROOT / preview_rel if preview_rel else pdf.with_suffix(".png")
+    return {"title": record.get("title") or "Notice technique", "pdf": pdf, "preview": preview}
 
 
-@app.route('/reception')
-def reception():
-    return render_template('reception.html')
-
-@app.route('/api/status')
-def api_status():
-    root = ensure_shared_root()
-    return jsonify({'shared_path': str(root), 'mode': 'automatic_app_folder'})
-
-@app.route('/api/tickets')
-def api_tickets():
-    status = request.args.get('status')
-    limit = request.args.get('limit')
-    tickets = list_tickets(status=status, limit=limit)
-    return jsonify(tickets)
-
-@app.route('/api/tickets', methods=['POST'])
-def api_create_ticket():
-    form = request.form
-    module = form.get('module','')
-    prefix = 'DEM' if module == 'Fiche de caisse' else ('DEV' if module == 'Demande de devis' else 'AV')
-    ticket_id = next_id(prefix)
-    ticket = {
-        'id': ticket_id,
-        'module': module,
-        'status': 'Demande créée',
-        'createdAt': datetime.now().isoformat(),
-        'dossier': form.get('dossier',''),
-        'ref': form.get('ref',''),
-        'preteur': form.get('preteur','-') or '-',
-        'expo': form.get('expo','-') or '-',
-        'objet': form.get('objet','-') or '-',
-        'chargeProjet': form.get('chargeProjet','-') or '-',
-        'typeCaisse': form.get('typeCaisse','-') or '-',
-        'dimensions': form.get('dimensions','-') or '-',
-        'dateEmballage': form.get('dateEmballage','-') or '-',
-        'prixDevis': form.get('prixDevis','-') or '-',
-        'dateRdv': form.get('dateRdv','-') or '-',
-        'heureRdv': form.get('heureRdv','-') or '-',
-        'lieuRdv': form.get('lieuRdv','-') or '-',
-        'contactRdv': form.get('contactRdv','-') or '-',
-        'commentaire': form.get('commentaire',''),
-        'files': [],
-        'managerSheets': []
-    }
-    ticket_folder(ticket_id)  # conserve la création du dossier local historique
-
-    for fs in request.files.getlist('files'):
-        if not fs.filename:
-            continue
-
-        content = fs.read()
-        clean_name = safe_filename(fs.filename)
-        storage_path = f"{ticket_id}/{datetime.now().strftime('%Y%m%d%H%M%S')}_{clean_name}"
-
-        try:
-            supabase_upload_bytes(
-                storage_path,
-                content,
-                fs.content_type
-            )
-        except Exception as e:
-            print(f"[SUPABASE UPLOAD] Erreur : {e}")
-            return jsonify({'ok': False, 'error': f'Erreur upload Supabase : {e}'}), 500
-
-        ticket['files'].append({
-            'name': fs.filename,
-            'size': len(content),
-            'path': storage_path
-        })
-
-    save_ticket(ticket)
-    return jsonify({'ok': True, 'id': ticket_id})
-
-
-@app.route('/api/tickets/<ticket_id>', methods=['PUT'])
-def api_update_ticket(ticket_id):
-    ticket = load_ticket(ticket_id)
-    if not ticket:
-        return jsonify({'error': 'Ticket introuvable'}), 404
-
-    data = request.get_json(silent=True) or {}
-
-    editable_fields = [
-        'dossier',
-        'ref',
-        'preteur',
-        'expo',
-        'objet',
-        'chargeProjet',
-        'typeCaisse',
-        'dimensions',
-        'dateEmballage',
-        'prixDevis',
-        'dateRdv',
-        'heureRdv',
-        'lieuRdv',
-        'contactRdv',
-        'commentaire'
-    ]
-
-    for field in editable_fields:
-        if field in data:
-            ticket[field] = data.get(field, '')
-
-    if 'expo' in data and 'objet' not in data:
-        ticket['objet'] = data.get('expo', '')
-
-    ticket['updatedAt'] = datetime.now().isoformat()
-    save_ticket(ticket)
-    return jsonify({'ok': True})
-
-@app.route('/api/tickets/<ticket_id>/status', methods=['PATCH'])
-def api_update_status(ticket_id):
-    ticket = load_ticket(ticket_id)
-    if not ticket:
-        return jsonify({'error': 'Ticket introuvable'}), 404
-
-    ancien_statut = ticket.get('status')
-
-    data = request.get_json(silent=True) or {}
-    nouveau_statut = data.get('status', ancien_statut)
-
-    ticket['status'] = nouveau_statut
-    ticket['updatedAt'] = datetime.now().isoformat()
-    save_ticket(ticket)
-
-    # L'envoi automatique SMTP est volontairement désactivé.
-    # La notification se prépare maintenant via Outlook Web avec le bouton "Envoyer Notif".
-    return jsonify({'ok': True})
-
-
-@app.route('/api/tickets/<ticket_id>/notification-url')
-def api_ticket_notification_url(ticket_id):
-    """Prépare une URL Outlook Web préremplie pour envoyer la notification manuellement."""
-    ticket = load_ticket(ticket_id)
-    if not ticket:
-        return jsonify({'error': 'Ticket introuvable'}), 404
-
-    charge_projet = (ticket.get("chargeProjet") or "").strip()
-    email_dest = _find_project_manager_email(charge_projet)
-
-    if not email_dest:
-        return jsonify({
-            'error': "Aucun email trouvé pour le chargé de projet dans les référentiels."
-        }), 404
-
-    module = ticket.get("module", "")
-    dossier = (ticket.get("dossier") or "").strip()
-    ref = (ticket.get("ref") or "").strip()
-    preteur = (ticket.get("preteur") or "").strip()
-    projet = (ticket.get("expo") or ticket.get("objet") or "").strip()
-    lieu_rdv = (ticket.get("lieuRdv") or "").strip()
-    date_rdv = (ticket.get("dateRdv") or "").strip()
-    heure_rdv = (ticket.get("heureRdv") or "").strip()
-    commentaire = ticket.get("commentaire", "")
-    fiche = ticket.get("fiche") or {}
-
-    subject = _format_ticket_notification_subject(ticket)
-
-    # Lien direct vers le ticket dans le portail demandeur, sans mot de passe.
-    base_url = request.host_url.rstrip('/')
-    ticket_url = f"{base_url}/demandeur?ticket={urllib.parse.quote(ticket_id, safe='')}"
-
-    if module == "Fiche de caisse":
-        link_text = f"Consulter la fiche de caisse {dossier}-{ref}"
-        intro = "La fiche de caisse suivante a été commandée :"
-        details = f"""
-        <p>
-          <strong>Dossier :</strong> {dossier or '-'}<br>
-          <strong>N° caisse / Référence :</strong> {ref or '-'}<br>
-          <strong>Prêteur :</strong> {preteur or '-'}<br>
-          <strong>Dimensions extérieures :</strong> {fiche.get('dimensionsExt') or '-'}<br>
-          <strong>Prix de cession :</strong> {fiche.get('prixCession') or '-'}<br>
-          <strong>Date mise à dispo :</strong> {datetime.fromisoformat(ticket.get('dateEmballage')).strftime('%d/%m/%Y') if ticket.get('dateEmballage') and ticket.get('dateEmballage') != '-' else '-'}
-        </p>
-        """
-    elif module == "Demande de devis":
-        label = " ".join([x for x in [dossier, projet] if x]).strip() or ticket_id
-        link_text = f"Consulter la demande de devis {label}"
-        intro = "La demande de devis suivante a été finalisée :"
-        details = f"""
-        <p>
-          <strong>Client / Dossier :</strong> {dossier or '-'}<br>
-          <strong>Projet :</strong> {projet or '-'}<br>
-          <strong>Chargé de projet :</strong> {charge_projet or '-'}
-        </p>
-        <p><strong>Commentaire :</strong><br>{(commentaire or '-').replace(chr(10), '<br>')}</p>
-        """
-    elif module == "Demande Aller voir":
-        label = " ".join([x for x in [dossier, projet] if x]).strip() or ticket_id
-        link_text = f"Consulter le dossier {label}"
-        intro = "La demande Aller Voir suivante a été finalisée :"
-        date_rdv_fr = datetime.fromisoformat(date_rdv).strftime('%d/%m/%Y') if date_rdv and date_rdv != '-' else '-'
-        details = f"""
-        <p>
-          <strong>Client / Dossier :</strong> {dossier or '-'}<br>
-          <strong>Projet :</strong> {projet or '-'}<br>
-          <strong>Lieu de rendez-vous :</strong> {lieu_rdv or '-'}<br>
-          <strong>Date :</strong> {date_rdv_fr}<br>
-          <strong>Heure :</strong> {heure_rdv or '-'}<br>
-          <strong>Prêteur :</strong> {preteur or '-'}
-        </p>
-        """
-    else:
-        label = " ".join([x for x in [dossier, projet] if x]).strip() or ticket_id
-        link_text = f"Consulter le ticket {label}"
-        intro = "La demande suivante a été finalisée :"
-        details = f"""
-        <p>
-          <strong>Client / Dossier :</strong> {dossier or '-'}<br>
-          <strong>Projet :</strong> {projet or '-'}<br>
-          <strong>Chargé de projet :</strong> {charge_projet or '-'}
-        </p>
-        """
-
-    body_html = f"""<html>
-<body>
-<p>Bonjour,</p>
-<p>{intro}</p>
-{details}
-<p>Les documents associés sont disponibles dans ESI Tickets.</p>
-<p>
-  <a href=\"{ticket_url}\" style=\"background:#0284c7;color:#ffffff;padding:10px 16px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;\">
-    {link_text}
-  </a>
-</p>
-</body>
-</html>"""
-
-    # Outlook Web accepte le paramètre body dans le deeplink compose.
-    # Le contenu HTML permet d'afficher un lien avec un libellé propre au lieu d'une URL brute.
-    params = urllib.parse.urlencode({
-        "to": email_dest,
-        "subject": subject,
-        "body": body_html
-    })
-
-    outlook_url = "https://outlook.office.com/mail/deeplink/compose?" + params
-
-    return jsonify({
-        'ok': True,
-        'to': email_dest,
-        'subject': subject,
-        'body': body_html,
-        'outlook_url': outlook_url,
-        'ticket_url': ticket_url,
-        'link_text': link_text
-    })
-
-
-def _build_notification_content(ticket, ticket_id, notification_mode='final'):
-    """Construit les éléments de notification en HTML pour un brouillon .eml Outlook."""
-    charge_projet = (ticket.get("chargeProjet") or "").strip()
-    email_dest = _find_project_manager_email(charge_projet)
-
-    if not email_dest:
-        return None, "Aucun email trouvé pour le chargé de projet dans les référentiels."
-
-    module = ticket.get("module", "")
-    dossier = (ticket.get("dossier") or "").strip()
-    ref = (ticket.get("ref") or "").strip()
-    preteur = (ticket.get("preteur") or "").strip()
-    projet = (ticket.get("expo") or ticket.get("objet") or "").strip()
-    lieu_rdv = (ticket.get("lieuRdv") or "").strip()
-    date_rdv = (ticket.get("dateRdv") or "").strip()
-    heure_rdv = (ticket.get("heureRdv") or "").strip()
-    commentaire = ticket.get("commentaire", "")
-    fiche = ticket.get("fiche") or {}
-
-    subject = _format_ticket_notification_subject(ticket)
-    base_url = request.host_url.rstrip('/')
-    ticket_url = f"{base_url}/demandeur?ticket={urllib.parse.quote(ticket_id, safe='')}"
-
-    def esc(value):
-        return html.escape(str(value or "-"))
-
-    def nl2br(value):
-        return html.escape(str(value or "-")).replace("\n", "<br>")
-
-    if module == "Fiche de caisse":
-        link_text = f"Consulter la fiche de caisse {dossier}-{ref}"
-        intro = "La fiche de caisse suivante a été commandée :"
-        details = f"""
-        <p>
-          <strong>Dossier :</strong> {esc(dossier)}<br>
-          <strong>N° caisse / Référence :</strong> {esc(ref)}<br>
-          <strong>Prêteur :</strong> {esc(preteur)}<br>
-          <strong>Dimensions extérieures :</strong> {esc(fiche.get('dimensionsExt'))}<br>
-          <strong>Prix de cession :</strong> {esc(fiche.get('prixCession'))}<br>
-          <strong>Date mise à dispo :</strong> {esc(datetime.fromisoformat(ticket.get('dateEmballage')).strftime('%d/%m/%Y') if ticket.get('dateEmballage') and ticket.get('dateEmballage') != '-' else '-')}
-        </p>
-        """
-    elif module == "Demande de devis":
-        label = " ".join([x for x in [dossier, projet] if x]).strip() or ticket_id
-        link_text = f"Consulter la demande de devis {label}"
-        intro = "La demande de devis suivante a été finalisée :"
-        details = f"""
-        <p>
-          <strong>Client / Dossier :</strong> {esc(dossier)}<br>
-          <strong>Projet :</strong> {esc(projet)}<br>
-          <strong>Chargé de projet :</strong> {esc(charge_projet)}
-        </p>
-        <p><strong>Commentaire :</strong><br>{nl2br(commentaire)}</p>
-        """
-    elif module == "Demande Aller voir":
-        label = " ".join([x for x in [dossier, projet] if x]).strip() or ticket_id
-        link_text = f"Consulter le dossier {label}"
-        date_rdv_fr = datetime.fromisoformat(date_rdv).strftime('%d/%m/%Y') if date_rdv and date_rdv != '-' else '-'
-
-        if notification_mode == 'validation':
-            subject = f"[ESI Tickets] Créneau Aller voir validé - {label}".strip()
-            intro = "Le créneau suivant a été validé :"
-            details = f"""
-            <p>
-              <strong>Client / Dossier :</strong> {esc(dossier)}<br>
-              <strong>Projet :</strong> {esc(projet)}<br>
-              <strong>Lieu de rendez-vous :</strong> {esc(lieu_rdv)}<br>
-              <strong>Date :</strong> {esc(date_rdv_fr)}<br>
-              <strong>Heure :</strong> {esc(heure_rdv)}<br>
-              <strong>Prêteur :</strong> {esc(preteur)}
-            </p>
-            <p>Le rendez-vous est désormais confirmé.</p>
-            """
-        else:
-            intro = "La demande Aller Voir suivante a été finalisée :"
-            details = f"""
-            <p>
-              <strong>Client / Dossier :</strong> {esc(dossier)}<br>
-              <strong>Projet :</strong> {esc(projet)}<br>
-              <strong>Lieu de rendez-vous :</strong> {esc(lieu_rdv)}<br>
-              <strong>Date :</strong> {esc(date_rdv_fr)}<br>
-              <strong>Heure :</strong> {esc(heure_rdv)}<br>
-              <strong>Prêteur :</strong> {esc(preteur)}
-            </p>
-            """
-    else:
-        label = " ".join([x for x in [dossier, projet] if x]).strip() or ticket_id
-        link_text = f"Consulter le ticket {label}"
-        intro = "La demande suivante a été finalisée :"
-        details = f"""
-        <p>
-          <strong>Client / Dossier :</strong> {esc(dossier)}<br>
-          <strong>Projet :</strong> {esc(projet)}<br>
-          <strong>Chargé de projet :</strong> {esc(charge_projet)}
-        </p>
-        """
-
-    documents_line = ""
-    if not (module == "Demande Aller voir" and notification_mode == "validation"):
-        documents_line = "<p>Les documents associés sont disponibles dans ESI Tickets.</p>"
-
-    body_html = f"""<!doctype html>
-<html>
-<body style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;line-height:1.45;">
-<p>Bonjour,</p>
-<p>{html.escape(intro)}</p>
-{details}
-{documents_line}
-<p>
-  <a href="{html.escape(ticket_url, quote=True)}" style="background:#0284c7;color:#ffffff;padding:10px 16px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">
-    {html.escape(link_text)}
-  </a>
-</p>
-</body>
-</html>"""
-
-    body_text = f"""Bonjour,
-
-{intro}
-
-Dossier : {dossier or '-'}
-Référence : {ref or '-'}
-Prêteur : {preteur or '-'}
-
-{link_text}
-{ticket_url}
-
-"""
-
+def notice_record_to_api(record: dict):
+    if not record:
+        return None
+    rel_pdf = record.get("pdf") or ""
+    rel_preview = record.get("preview") or ""
+    if not rel_preview and rel_pdf.lower().endswith(".pdf"):
+        rel_preview = rel_pdf[:-4] + ".png"
     return {
-        "to": email_dest,
-        "subject": subject,
-        "body_html": body_html,
-        "body_text": body_text,
-        "ticket_url": ticket_url,
-        "link_text": link_text,
-    }, None
+        "title": record.get("title") or "Notice technique",
+        "pdf": "/" + rel_pdf.lstrip("/"),
+        "preview": "/" + rel_preview.lstrip("/") if rel_preview else "",
+        "key": record.get("key") or "",
+        "auto": bool(record.get("auto")),
+    }
 
 
-@app.route('/api/tickets/<ticket_id>/notification-eml')
-def api_ticket_notification_eml(ticket_id):
-    """Génère un brouillon .eml HTML à ouvrir dans Outlook Desktop."""
-    ticket = load_ticket(ticket_id)
-    if not ticket:
-        return jsonify({'error': 'Ticket introuvable'}), 404
-
-    notification_mode = (request.args.get('mode') or 'final').strip()
-    content, error = _build_notification_content(ticket, ticket_id, notification_mode)
-    if error:
-        return jsonify({'error': error}), 404
-
-    msg = EmailMessage()
-    msg['To'] = content['to']
-    msg['Subject'] = content['subject']
-    msg['Date'] = formatdate(localtime=True)
-    msg['Message-ID'] = make_msgid(domain='esi-tickets.local')
-    # Indique à Outlook que le fichier doit s'ouvrir comme un message non envoyé.
-    msg['X-Unsent'] = '1'
-    msg.set_content(
-        content['body_text'],
-        charset='utf-8',
-        cte='8bit'
+def notice_match_values(sheet: str, data: dict) -> tuple[str, str, str]:
+    """Valeurs normalisées utilisées pour retrouver une notice.
+    On garde la clé stable, mais on accepte aussi les anciens enregistrements
+    dont la clé aurait été construite différemment.
+    """
+    isolant = data.get("type_isolant") or "Aucun"
+    calage = (
+        data.get("type_calage")
+        or data.get("separations")
+        or data.get("option_calage")
+        or data.get("base")
+        or "Aucun"
     )
-    msg.add_alternative(
-        content['body_html'],
-        subtype='html',
-        charset='utf-8',
-        cte='8bit'
-    )
-
-    filename_base = "notification_" + safe_filename(ticket_id)
-    eml_bytes = msg.as_bytes()
-
-    import io
-    return send_file(
-        io.BytesIO(eml_bytes),
-        as_attachment=True,
-        download_name=f"{filename_base}.eml",
-        mimetype='message/rfc822'
-    )
+    return slugify(sheet), slugify(isolant), slugify(calage)
 
 
-@app.route('/api/tickets/<ticket_id>/manager-sheet', methods=['POST'])
-def api_manager_sheet(ticket_id):
-    ticket = load_ticket(ticket_id)
-    if not ticket:
-        return jsonify({'error': 'Ticket introuvable'}), 404
+def find_notice_record(sheet: str, data: dict):
+    key = notice_key(sheet, data)
+    sheet_s, isolant_s, calage_s = notice_match_values(sheet, data)
+    notices = load_notices_index().get("notices", [])
 
-    files = request.files.getlist('files')
-    if not files:
-        single = request.files.get('file')
-        if single:
-            files = [single]
+    # 1) Recherche par clé exacte
+    for record in notices:
+        if record.get("key") == key:
+            return record
 
-    valid_files = [fs for fs in files if fs and fs.filename]
-    if not valid_files:
-        return jsonify({'error': 'Fichier manquant'}), 400
+    # 2) Recherche tolérante par champs enregistrés
+    for record in notices:
+        r_sheet = slugify(record.get("sheet") or "")
+        r_isolant = slugify(record.get("type_isolant") or record.get("isolant") or "Aucun")
+        r_calage = slugify(record.get("type_calage") or record.get("calage") or record.get("separations") or "Aucun")
+        if (r_sheet, r_isolant, r_calage) == (sheet_s, isolant_s, calage_s):
+            return record
 
-    ticket_folder(ticket_id)  # conserve la création du dossier local historique
-    manager_sheets = list(ticket.get('managerSheets') or [])
-    legacy = ticket.get('managerSheet')
-    if legacy and isinstance(legacy, dict) and legacy.get('name'):
-        if not any(x.get('name') == legacy.get('name') for x in manager_sheets):
-            manager_sheets.append(legacy)
-
-    for fs in valid_files:
-        content = fs.read()
-        clean_name = safe_filename(fs.filename)
-        storage_path = f"{ticket_id}/gestionnaire/{datetime.now().strftime('%Y%m%d%H%M%S')}_{clean_name}"
-
-        try:
-            supabase_upload_bytes(
-                storage_path,
-                content,
-                fs.content_type
-            )
-        except Exception as e:
-            print(f"[SUPABASE UPLOAD GESTIONNAIRE] Erreur : {e}")
-            return jsonify({'ok': False, 'error': f'Erreur upload Supabase : {e}'}), 500
-
-        manager_sheets = [x for x in manager_sheets if x.get('name') != fs.filename]
-        manager_sheets.append({
-            'name': fs.filename,
-            'size': len(content),
-            'path': storage_path
-        })
-    ticket['managerSheets'] = manager_sheets
-    ticket['updatedAt'] = datetime.now().isoformat()
-    save_ticket(ticket)
-    return jsonify({'ok': True})
-
-def _find_file_info(ticket, filename, kind):
-    items = ticket.get('managerSheets') if kind == 'gestionnaire' else ticket.get('files')
-    for f in items or []:
-        if f.get('name') == filename:
-            return f
     return None
 
 
-def _redirect_to_signed_file(ticket_id, filename, kind):
-    ticket = load_ticket(ticket_id)
-    if not ticket:
-        abort(404)
-
-    file_info = _find_file_info(ticket, filename, kind)
-    if not file_info:
-        abort(404)
-
-    storage_path = file_info.get('path')
-    if not storage_path:
-        abort(404)
-
-    try:
-        signed_url = supabase_signed_download_url(storage_path, expires_in=300)
-    except Exception as e:
-        # Secours : si l'URL signée échoue, on garde l'ancien comportement via Render.
-        print(f"[SUPABASE SIGNED DOWNLOAD] Erreur, fallback Render : {e}")
-        import io
+def next_notice_id(index: dict) -> int:
+    """Retourne le prochain identifiant numérique pour les notices auto."""
+    max_id = 0
+    for record in index.get("notices", []):
         try:
-            data = supabase_download_bytes(storage_path)
-        except Exception as e2:
-            print(f"[SUPABASE DOWNLOAD] Erreur : {e2}")
-            abort(404)
-        return send_file(io.BytesIO(data), as_attachment=True, download_name=filename)
-
-    return redirect(signed_url)
+            max_id = max(max_id, int(record.get("id") or 0))
+        except Exception:
+            pass
+    return max_id + 1
 
 
-@app.route('/api/tickets/<ticket_id>/download/<filename>')
-def api_download_file(ticket_id, filename):
-    return _redirect_to_signed_file(ticket_id, filename, 'demandeur')
-
-
-@app.route('/api/tickets/<ticket_id>/download-sheet/<filename>')
-def api_download_sheet(ticket_id, filename):
-    return _redirect_to_signed_file(ticket_id, filename, 'gestionnaire')
-
-
-@app.route('/api/tickets/<ticket_id>/fiche', methods=['GET'])
-def api_get_fiche(ticket_id):
-    ticket = load_ticket(ticket_id)
-    if not ticket:
-        return jsonify({'error': 'Ticket introuvable'}), 404
-    return jsonify(ticket.get('fiche', {}))
-
-@app.route('/api/tickets/<ticket_id>/fiche', methods=['POST'])
-def api_save_fiche(ticket_id):
-    ticket = load_ticket(ticket_id)
-    if not ticket:
-        return jsonify({'error': 'Ticket introuvable'}), 404
-    data = request.get_json(silent=True) or {}
-    longueur = data.get('longueur', '')
-    largeur = data.get('largeur', '')
-    hauteur = data.get('hauteur', '')
-    dimensions_ext = " x ".join([v for v in [longueur, largeur, hauteur] if str(v).strip()])
-    ticket['fiche'] = {
-        'longueur': longueur,
-        'largeur': largeur,
-        'hauteur': hauteur,
-        'dimensionsExt': dimensions_ext,
-        'prixAchat': data.get('prixAchat', ''),
-        'prixCession': data.get('prixCession', ''),
-        'typeCaisseFiche': data.get('typeCaisseFiche', ''),
-        'bilanCarbone': data.get('bilanCarbone', ''),
-        'poids': data.get('poids', ''),
-        'choixCaissier': data.get('choixCaissier', '')
+def notice_category_dir(sheet: str) -> str:
+    """Dossier lisible pour ranger les notices ajoutées depuis l'application."""
+    mapping = {
+        "T1": "T1",
+        "T1-T6": "T1-T6",
+        "MRT": "MRT",
+        "T1-T3 MRT": "T1-T3-MRT",
+        "T à Glissières": "T-Glissieres",
+        "T Séparations mousse": "T-Separations-Mousse",
+        "Objet 1": "Objet1",
     }
-    save_ticket(ticket)
-    return jsonify({'ok': True})
+    return mapping.get(sheet, slugify(sheet))
 
 
+def register_notice(sheet: str, data: dict, title: str, source_pdf: Path) -> dict:
+    key = notice_key(sheet, data)
+    index = load_notices_index()
 
-@app.route('/api/export/excel')
-def api_export_excel():
-    try:
-        from openpyxl import Workbook
-        import io
-        import re
-    except Exception:
-        return jsonify({'error': "openpyxl non installé"}), 500
+    # Si une notice existait déjà pour cette combinaison, on la remplace proprement
+    # tout en gardant un nom de fichier simple et stable.
+    old_record = None
+    for record in index.get("notices", []):
+        if record.get("key") == key:
+            old_record = record
+            break
 
-    tickets = list_tickets()
+    notice_id = int(old_record.get("id")) if old_record and old_record.get("id") else next_notice_id(index)
+    folder = ROOT / "assets" / "notices" / "Auto" / notice_category_dir(sheet)
+    folder.mkdir(parents=True, exist_ok=True)
+    filename = f"{notice_id:04d}.pdf"
+    dest = folder / filename
+    shutil.copyfile(source_pdf, dest)
+    preview_path = dest.with_suffix(".png")
+    preview_ok = render_pdf_first_page_to_png(dest, preview_path)
 
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Tickets"
+    record = {
+        "id": notice_id,
+        "key": key,
+        "sheet": sheet,
+        "type_isolant": data.get("type_isolant") or "Aucun",
+        "type_calage": data.get("type_calage") or data.get("separations") or data.get("option_calage") or data.get("base") or "Aucun",
+        "title": title or f"Notice technique - {sheet}",
+        "pdf": str(dest.relative_to(ROOT)).replace("\\", "/"),
+        "preview": str(preview_path.relative_to(ROOT)).replace("\\", "/") if preview_ok else "",
+        "auto": True,
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
+    }
 
-    ws.append([
-        "ID","Module","Statut","Date création","Dossier / Client",
-        "Réf / N° caisse","Chargé de projet","Projet / Expo",
-        "Type de caisse","Dimensions","Prix devis",
-        "Prix d'achat","Prix cession","Commentaire","Choix du caissier",
-        "Date RDV","Heure RDV","Lieu RDV"
-    ])
+    notices = [r for r in index.get("notices", []) if r.get("key") != key]
+    notices.append(record)
+    notices.sort(key=lambda r: int(r.get("id") or 0))
+    index["notices"] = notices
+    save_notices_index(index)
+    return record
 
-    def parse_euro(value):
-        if value is None:
-            return None
-        txt = str(value).strip()
-        if not txt or txt == '-':
-            return None
-        txt = txt.replace('\xa0', ' ').replace('€', '').replace(' ', '')
-        txt = txt.replace(',', '.')
-        txt = re.sub(r'[^0-9.\-]', '', txt)
-        if not txt:
-            return None
+
+def legacy_notice_for(sheet: str, data: dict):
+    """Anciennes notices codées en dur, conservées comme secours."""
+    calage = str(data.get("type_calage") or "").lower()
+    isolant = str(data.get("type_isolant") or "").lower()
+
+    def doc(title, rel_pdf):
+        pdf = ROOT / rel_pdf
+        return {"title": title, "pdf": pdf, "preview": pdf.with_suffix(".png")}
+
+    if sheet == "T1" and "bandes" in calage:
+        if "isotherme" in isolant or "super" in isolant or "double" in isolant:
+            return doc("Caisse tableau - bandes de mousse double isotherme", "assets/notices/Tableaux/T1/bandes_mousse_double_isotherme.pdf")
+        return doc("Caisse tableau - bandes de mousse", "assets/notices/T1/caisse_tableau_bandes_mousse.pdf")
+
+    if sheet == "MRT" or sheet == "T1-T3 MRT":
+        return doc("Caisse tableau MRT", "assets/notices/Tableaux/MRT/mrt.pdf")
+
+    if sheet == "T à Glissières":
+        return doc("Caisse glissières", "assets/notices/Tableaux/Glissieres/glissieres.pdf")
+
+    if sheet == "Objet 1":
+        if "banc" in calage:
+            return doc("Caisse objet - bancs ouverts", "assets/notices/Objets/Objet1/caisse_objet_bancs_ouverts.pdf")
+        if "guillotine" in calage:
+            return doc("Caisse objet - guillotines", "assets/notices/Objets/Objet1/caisse_objet_guillotines.pdf")
+        if "entourage" in calage or "mousse" in calage or "ecrin" in calage:
+            if "double" in isolant:
+                return doc("Caisse objet - entourage mousse double isotherme", "assets/notices/Objets/Objet1/caisse_objet_entourage_mousse_double_isotherme.pdf")
+            if "super" in isolant or "30" in isolant:
+                return doc("Objet superiso 30 - entourage mousse", "assets/notices/Objets/Objet1/objet_superiso30_entourage_mousse.pdf")
+            if "isotherme" in isolant:
+                return doc("Caisse objet - entourage mousse isotherme", "assets/notices/Objets/Objet1/caisse_objet_entourage_mousse_isotherme.pdf")
+            return doc("Caisse objet - entourage mousse", "assets/notices/Objets/Objet1/caisse_objet_entourage_mousse.pdf")
+
+    return None
+
+
+def notice_for(sheet: str, data: dict):
+    """Retourne d'abord une notice associée depuis le registre, puis les anciennes notices de secours."""
+    registered = find_notice_record(sheet, data)
+    if registered:
+        return notice_record_to_doc(registered)
+    return legacy_notice_for(sheet, data)
+
+
+def notice_for_api(sheet: str, data: dict):
+    registered = find_notice_record(sheet, data)
+    if registered:
+        return notice_record_to_api(registered)
+    legacy = legacy_notice_for(sheet, data)
+    if legacy:
         try:
-            return float(txt)
+            pdf_rel = str(legacy["pdf"].relative_to(ROOT)).replace("\\", "/")
+            preview_rel = str(legacy["preview"].relative_to(ROOT)).replace("\\", "/")
         except Exception:
             return None
-
-    for t in tickets:
-        fiche = t.get('fiche', {}) or {}
-        ws.append([
-            t.get('id',''),
-            t.get('module',''),
-            t.get('status',''),
-            t.get('createdAt',''),
-            t.get('dossier',''),
-            t.get('ref',''),
-            t.get('chargeProjet',''),
-            t.get('expo') or t.get('objet',''),
-            t.get('typeCaisse',''),
-            t.get('dimensions',''),
-            parse_euro(t.get('prixDevis','')),
-            parse_euro(fiche.get('prixAchat','')),
-            parse_euro(fiche.get('prixCession','')),
-            t.get('commentaire',''),
-            fiche.get('choixCaissier',''),
-            t.get('dateRdv',''),
-            t.get('heureRdv',''),
-            t.get('lieuRdv','')
-        ])
-
-    for row in range(2, ws.max_row + 1):
-        for col in [11, 12, 13]:
-            ws.cell(row=row, column=col).number_format = '#,##0.00 €'
-
-    output = io.BytesIO()
-    wb.save(output)
-    output.seek(0)
-
-    return send_file(
-        output,
-        as_attachment=True,
-        download_name="tickets_esi.xlsx",
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+        return {"title": legacy["title"], "pdf": "/" + pdf_rel, "preview": "/" + preview_rel, "key": notice_key(sheet, data), "auto": False}
+    return None
 
 
-
-@app.route('/api/tickets/<ticket_id>/export-pdf')
-def api_export_ticket_pdf(ticket_id):
-    ticket = load_ticket(ticket_id)
-    if not ticket:
-        return jsonify({'error': 'Ticket introuvable'}), 404
-
-    import io
-    import textwrap
-
-    def clean(value):
-        if value is None or value == '':
-            return '-'
-        return str(value).replace('\r', ' ').replace('\n', ' ')
-
-    def add_wrapped(lines, label, value):
-        text = label + " : " + clean(value)
-        for part in textwrap.wrap(text, width=82) or [text]:
-            lines.append(part)
-
-    lines = []
-    lines.append("ESI TICKETS - DETAIL TICKET")
-    lines.append("=" * 70)
-    lines.append("")
-    add_wrapped(lines, "ID", ticket.get('id'))
-    add_wrapped(lines, "Module", ticket.get('module'))
-    add_wrapped(lines, "Statut", ticket.get('status'))
-    add_wrapped(lines, "Dossier / Client", ticket.get('dossier'))
-    add_wrapped(lines, "Reference", ticket.get('ref'))
-    add_wrapped(lines, "Charge de projet", ticket.get('chargeProjet'))
-    add_wrapped(lines, "Projet / Expo", ticket.get('expo') or ticket.get('objet'))
-    add_wrapped(lines, "Preteur", ticket.get('preteur'))
-    add_wrapped(lines, "Type de caisse", ticket.get('typeCaisse'))
-    add_wrapped(lines, "Dimensions", ticket.get('dimensions'))
-    add_wrapped(lines, "Prix devis", ticket.get('prixDevis'))
-    add_wrapped(lines, "Lieu RDV", ticket.get('lieuRdv'))
-    add_wrapped(lines, "Date RDV", ticket.get('dateRdv'))
-    add_wrapped(lines, "Heure RDV", ticket.get('heureRdv'))
-
-    lines.append("")
-    lines.append("COMMENTAIRE / INFORMATIONS")
-    lines.append("-" * 70)
-    commentaire = clean(ticket.get('commentaire'))
-    for part in textwrap.wrap(commentaire, width=82) or ['-']:
-        lines.append(part)
-
-    fiche = ticket.get('fiche') or {}
-    if fiche:
-        lines.append("")
-        lines.append("INFORMATIONS FICHE")
-        lines.append("-" * 70)
-        add_wrapped(lines, "Dimensions exterieures", fiche.get('dimensionsExt'))
-        add_wrapped(lines, "Prix achat", fiche.get('prixAchat'))
-        add_wrapped(lines, "Type caisse fiche", fiche.get('typeCaisseFiche'))
-        add_wrapped(lines, "Bilan carbone", fiche.get('bilanCarbone'))
-        add_wrapped(lines, "Poids", fiche.get('poids'))
-        add_wrapped(lines, "Choix caissier", fiche.get('choixCaissier'))
-
-    lines.append("")
-    lines.append("DOCUMENTS DU DEMANDEUR")
-    lines.append("-" * 70)
-    files = ticket.get('files') or []
-    if files:
-        for f in files:
-            lines.append("- " + clean(f.get('name')))
-    else:
-        lines.append("- Aucun document")
-
-    manager_sheets = ticket.get('managerSheets') or []
-    if manager_sheets:
-        lines.append("")
-        lines.append("DOCUMENTS GESTIONNAIRE")
-        lines.append("-" * 70)
-        for f in manager_sheets:
-            lines.append("- " + clean(f.get('name')))
-
-    lines.append("")
-    lines.append("NOTES / ACTIONS A PREVOIR")
-    lines.append("-" * 70)
-    lines.append("")
-    lines.append("_" * 70)
-    lines.append("")
-    lines.append("_" * 70)
-    lines.append("")
-    lines.append("_" * 70)
-
-    def pdf_escape(value):
-        value = str(value)
-        value = value.replace("\\", "\\\\")
-        value = value.replace("(", "\\(")
-        value = value.replace(")", "\\)")
-        return value
-
-    page_width, page_height = 595, 842
-    margin_left = 42
-    y_start = 800
-    line_height = 14
-    max_lines = 53
-    chunks = [lines[i:i+max_lines] for i in range(0, len(lines), max_lines)] or [["Ticket vide"]]
-
-    objects = [
-        b"<< /Type /Catalog /Pages 2 0 R >>",
-        None,
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
-    ]
-
-    page_refs = []
-    for chunk in chunks:
-        content_obj_num = len(objects) + 1
-        content_lines = ["BT", "/F1 10 Tf", f"{margin_left} {y_start} Td"]
-        first = True
-        for line in chunk:
-            if not first:
-                content_lines.append(f"0 -{line_height} Td")
-            first = False
-            content_lines.append(f"({pdf_escape(line)}) Tj")
-        content_lines.append("ET")
-
-        stream = "\n".join(content_lines).encode("latin-1", errors="replace")
-        objects.append(f"<< /Length {len(stream)} >>\nstream\n".encode("latin-1") + stream + b"\nendstream")
-
-        page_obj_num = len(objects) + 1
-        page = (
-            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {page_width} {page_height}] "
-            f"/Resources << /Font << /F1 3 0 R >> >> /Contents {content_obj_num} 0 R >>"
-        )
-        objects.append(page.encode("latin-1"))
-        page_refs.append(f"{page_obj_num} 0 R")
-
-    objects[1] = f"<< /Type /Pages /Kids [{' '.join(page_refs)}] /Count {len(page_refs)} >>".encode("latin-1")
-
-    pdf = io.BytesIO()
-    pdf.write(b"%PDF-1.4\n")
-    offsets = []
-
-    for i, obj in enumerate(objects, start=1):
-        offsets.append(pdf.tell())
-        pdf.write(f"{i} 0 obj\n".encode("latin-1"))
-        pdf.write(obj)
-        pdf.write(b"\nendobj\n")
-
-    xref_pos = pdf.tell()
-    pdf.write(f"xref\n0 {len(objects)+1}\n".encode("latin-1"))
-    pdf.write(b"0000000000 65535 f \n")
-    for offset in offsets:
-        pdf.write(f"{offset:010d} 00000 n \n".encode("latin-1"))
-
-    trailer = f"trailer\n<< /Size {len(objects)+1} /Root 1 0 R >>\nstartxref\n{xref_pos}\n%%EOF"
-    pdf.write(trailer.encode("latin-1"))
-    pdf.seek(0)
-
-    return send_file(
-        pdf,
-        as_attachment=True,
-        download_name=f"{ticket.get('id','ticket')}.pdf",
-        mimetype='application/pdf'
-    )
-
-
-
-
-@app.route('/api/restart')
-def api_restart():
-    import os
-    os._exit(0)
-
-@app.route('/splash')
-def splash():
-    return """
-    <html>
-    <head>
-        <title>ESI Tickets</title>
-        <style>
-            body{margin:0;display:flex;justify-content:center;align-items:center;height:100vh;background:linear-gradient(180deg,#eef6fb,#f6f8fb);font-family:Arial;}
-            .box{text-align:center;}
-            img{width:120px;margin-bottom:20px;}
-            h1{margin:0;color:#0284c7;}
-            p{color:#64748b;}
-        </style>
-        <script>
-            setTimeout(()=>{window.location.href="/demandeur";},1500);
-        </script>
-    </head>
-    <body>
-        <div class="box">
-            <img id="splashLogo" src="/static/logo.jpg" onerror="
-                const logos=['/static/logo.png','/static/logo%20esi.jpg'];
-                const idx=Number(this.dataset.idx||0);
-                if(idx<logos.length){this.dataset.idx=idx+1;this.src=logos[idx];}
-                else{this.style.display='none';}
-            ">
-            <h1>ESI Tickets</h1>
-            <p>Chargement en cours...</p>
-        </div>
-    </body>
-    </html>
+def parse_multipart_form(headers, body: bytes) -> tuple[dict, dict]:
+    """Parse un formulaire multipart/form-data sans module cgi (compatible Python 3.13/3.14).
+    Retourne (fields, files) avec files[name] = {filename, content, content_type}.
     """
+    from email.parser import BytesParser
+    from email.policy import default
+
+    content_type = headers.get("Content-Type", "")
+    if "multipart/form-data" not in content_type.lower():
+        raise ValueError("Requête multipart/form-data attendue.")
+
+    raw = (
+        f"Content-Type: {content_type}\r\n"
+        "MIME-Version: 1.0\r\n\r\n"
+    ).encode("utf-8") + body
+
+    message = BytesParser(policy=default).parsebytes(raw)
+    fields: dict[str, str] = {}
+    files: dict[str, dict] = {}
+
+    for part in message.iter_parts():
+        disposition = part.get("Content-Disposition", "")
+        if "form-data" not in disposition:
+            continue
+        name = part.get_param("name", header="Content-Disposition")
+        filename = part.get_filename()
+        payload = part.get_payload(decode=True) or b""
+        if not name:
+            continue
+        if filename:
+            files[name] = {
+                "filename": filename,
+                "content": payload,
+                "content_type": part.get_content_type(),
+            }
+        else:
+            charset = part.get_content_charset() or "utf-8"
+            fields[name] = payload.decode(charset, errors="replace")
+    return fields, files
+
+def generate_internal_fiche_pdf(sheet: str, data: dict, result: dict) -> bytes:
+    """Génère une fiche chiffrage interne ESI sur une seule page PDF."""
+    result = enrich_result_with_cession(result)
+    notice = notice_for(sheet, data)
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        pdf_path = Path(tmp.name)
+
+    c = canvas.Canvas(str(pdf_path), pagesize=A4)
+    w, h = A4
+    margin = 14 * mm
+    blue = colors.HexColor("#0284c7")
+    sky = colors.HexColor("#0ea5e9")
+    text = colors.HexColor("#0f172a")
+    muted = colors.HexColor("#64748b")
+    line = colors.HexColor("#dbeafe")
+    light = colors.HexColor("#f8fafc")
+
+    # Header
+    c.setFillColor(light)
+    c.roundRect(margin, h - 32*mm, w - 2*margin, 20*mm, 6*mm, fill=1, stroke=0)
+    c.setFillColor(blue)
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(margin + 8*mm, h - 18*mm, "ESI - FICHE CHIFFRAGE INTERNE")
+    c.setFillColor(text)
+    c.setFont("Helvetica-Bold", 20)
+    c.drawString(margin + 8*mm, h - 27*mm, str(sheet))
+    c.setFillColor(muted)
+    c.setFont("Helvetica", 8)
+    c.drawRightString(w - margin - 8*mm, h - 18*mm, datetime.now().strftime("%d/%m/%Y"))
+
+    # Meta / input dimensions
+    y = h - 42*mm
+    c.setFillColor(text)
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(margin, y, "Informations")
+    y -= 8*mm
+    fields = [
+        ("Client", data.get("client") or "ESI"),
+        ("Responsable", data.get("responsable_dossier") or "-"),
+        ("Dimensions oeuvre", f"{data.get('longueur_cm') or '-'} x {data.get('largeur_cm') or data.get('epaisseur_cm') or '-'} x {data.get('hauteur_cm') or '-'} cm"),
+    ]
+    for lab, val in fields:
+        c.setFillColor(muted); c.setFont("Helvetica-Bold", 7); c.drawString(margin, y, lab.upper())
+        c.setFillColor(text); c.setFont("Helvetica-Bold", 10); c.drawString(margin + 45*mm, y, str(val))
+        y -= 7*mm
+
+    # Result cards
+    dim = "-"
+    dl = result.get("dimensions_exterieures_longueur")
+    de = result.get("dimensions_exterieures_epaisseur")
+    dh = result.get("dimensions_exterieures_hauteur")
+    if dl or de or dh:
+        dim = f"{num_text(dl)} x {num_text(de)} x {num_text(dh)} cm"
+    cards = [
+        ("Dimensions extérieures", dim),
+        ("Poids caisse", num_text(result.get("poids_caisse"), " kg")),
+        ("Bilan carbone", num_text(result.get("bilan_carbone"), " kg CO2e")),
+        ("Prix de cession", euro_text(result.get("prix_cession"))),
+    ]
+    y -= 4*mm
+    card_w = (w - 2*margin - 8*mm) / 2
+    card_h = 20*mm
+    for i, (lab, val) in enumerate(cards):
+        x = margin + (i % 2) * (card_w + 8*mm)
+        yy = y - (i // 2) * (card_h + 6*mm)
+        c.setStrokeColor(line); c.setFillColor(light)
+        c.roundRect(x, yy - card_h, card_w, card_h, 4*mm, fill=1, stroke=1)
+        c.setFillColor(muted); c.setFont("Helvetica-Bold", 7); c.drawString(x + 5*mm, yy - 7*mm, lab.upper())
+        c.setFillColor(text); c.setFont("Helvetica-Bold", 14); c.drawString(x + 5*mm, yy - 15*mm, str(val))
+    y = y - 2*(card_h + 6*mm) - 4*mm
+
+    # Notice preview
+    c.setFillColor(blue); c.setFont("Helvetica-Bold", 10)
+    c.drawString(margin, y, "Notice technique")
+    y -= 5*mm
+    box_x, box_y = margin, margin + 8*mm
+    box_w, box_h = w - 2*margin, y - box_y
+    c.setStrokeColor(line); c.setFillColor(colors.white)
+    c.roundRect(box_x, box_y, box_w, box_h, 5*mm, fill=1, stroke=1)
+    preview_path = None
+    if notice:
+        preview_path = notice.get("preview")
+        if (not preview_path or not preview_path.exists()) and notice.get("pdf") and notice["pdf"].exists():
+            tmp_preview = Path(tempfile.gettempdir()) / f"notice_preview_{abs(hash(str(notice['pdf'])))}.png"
+            if render_pdf_first_page_to_png(notice["pdf"], tmp_preview):
+                preview_path = tmp_preview
+    if notice and preview_path and preview_path.exists():
+        img = ImageReader(str(preview_path))
+        iw, ih = img.getSize()
+        scale = min((box_w - 10*mm)/iw, (box_h - 13*mm)/ih)
+        draw_w, draw_h = iw*scale, ih*scale
+        c.drawImage(img, box_x + (box_w-draw_w)/2, box_y + 7*mm, width=draw_w, height=draw_h, preserveAspectRatio=True)
+        c.setFillColor(text); c.setFont("Helvetica-Bold", 9)
+        c.drawString(box_x + 5*mm, box_y + box_h - 7*mm, notice["title"])
+    else:
+        c.setFillColor(muted); c.setFont("Helvetica", 11)
+        c.drawCentredString(box_x + box_w/2, box_y + box_h/2, "Aucune notice technique associée")
+
+    c.setFillColor(muted); c.setFont("Helvetica", 7)
+    c.drawRightString(w - margin, 7*mm, "Document interne généré par la matrice de chiffrage ESI")
+    c.showPage()
+    c.save()
+    pdf_bytes = pdf_path.read_bytes()
+    try:
+        pdf_path.unlink()
+    except Exception:
+        pass
+    return pdf_bytes
 
 
-@app.route('/api/tickets/<ticket_id>/validate-aller-voir', methods=['POST'])
-def api_validate_aller_voir(ticket_id):
-    ticket = load_ticket(ticket_id)
-    if not ticket:
-        return jsonify({'error': 'Ticket introuvable'}), 404
-    ticket['status'] = 'En cours'
-    ticket['validatedAt'] = datetime.now().isoformat()
-    save_ticket(ticket)
-    return jsonify({'ok': True})
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, fmt, *args):
+        return
 
-@app.route('/api/tickets/<ticket_id>/calendar.ics')
-def api_ticket_calendar_ics(ticket_id):
-    ticket = load_ticket(ticket_id)
-    if not ticket:
-        return jsonify({'error': 'Ticket introuvable'}), 404
+    def send_json(self, payload, status=200):
+        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
-    date_rdv = ticket.get('dateRdv')
-    heure_rdv = ticket.get('heureRdv')
-    if not date_rdv or not heure_rdv or date_rdv == '-' or heure_rdv == '-':
-        return jsonify({'error': 'Date/heure manquante'}), 400
+    def send_file(self, path: Path):
+        if not path.exists() or not path.is_file():
+            self.send_error(404)
+            return
+        ctype = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
+        data = path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
-    from datetime import timedelta
-    start = datetime.fromisoformat(f"{date_rdv}T{heure_rdv}:00")
-    end = start + timedelta(hours=2)
+    def do_GET(self):
+        parsed = urlparse(self.path)
+        if parsed.path in ("/", "/index.html"):
+            return self.send_file(ROOT / "index.html")
+        if parsed.path in ("/health", "/api/health"):
+            return self.send_json({"ok": True, "service": "matrice-chiffrage-esi"})
+        if parsed.path == "/api/config":
+            return self.send_json({
+                "onglets": load_onglets(),
+                "classiques": CLASSIQUES,
+                "migres": sorted(MIGRES),
+                "parametres_matiere": load_parametres_matiere(),
+                "notices_count": len(load_notices_index().get("notices", [])),
+                "deployment": {
+                    "render": True,
+                    "supabase_configured": bool(os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_ANON_KEY")),
+                },
+                "options": {
+                    "T1": options_t1(),
+                    "T1-T6": options_t1_t6(),
+                    "MRT": options_mrt(),
+                    "T1-T3 MRT": options_t1_t3_mrt(),
+                    "T à Glissières": options_t_glissieres(),
+                    "T Séparations mousse": options_t_separations_mousse(),
+                    "Objet 1": options_objet1(),
+                },
+            })
+        if parsed.path == "/api/notices":
+            return self.send_json(load_notices_index())
+        safe = parsed.path.lstrip("/").replace("..", "")
+        return self.send_file(ROOT / safe)
 
-    def fmt(dt):
-        return dt.strftime('%Y%m%dT%H%M%S')
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        if parsed.path.startswith("/api/calculate/"):
+            sheet = unquote(parsed.path.split("/api/calculate/", 1)[1])
+            length = int(self.headers.get("Content-Length", "0") or 0)
+            raw = self.rfile.read(length) if length else b"{}"
+            try:
+                data = json.loads(raw.decode("utf-8") or "{}")
+                result = enrich_result_with_cession(calculate_sheet(sheet, data))
+                return self.send_json({"ok": True, "sheet": sheet, "result": {k: fmt(v) for k, v in result.items()}})
+            except Exception as exc:
+                return self.send_json({"ok": False, "error": str(exc)}, status=500)
+        if parsed.path == "/api/notice/find":
+            length = int(self.headers.get("Content-Length", "0") or 0)
+            raw = self.rfile.read(length) if length else b"{}"
+            try:
+                payload = json.loads(raw.decode("utf-8") or "{}")
+                sheet = payload.get("sheet") or ""
+                data = payload.get("data") or {}
+                found = notice_for_api(sheet, data)
+                return self.send_json({"ok": True, "notice": found})
+            except Exception as exc:
+                return self.send_json({"ok": False, "error": str(exc)}, status=500)
+        if parsed.path == "/api/notice/associate":
+            try:
+                length = int(self.headers.get("Content-Length", "0") or 0)
+                body = self.rfile.read(length) if length else b""
+                fields, files = parse_multipart_form(self.headers, body)
 
-    lieu = (ticket.get('lieuRdv') or '').strip()
-    dossier = (ticket.get('dossier') or '').strip()
-    summary = f"Aller voir - {lieu} - {dossier}"
+                sheet = fields.get("sheet", "")
+                data_raw = fields.get("data", "{}")
+                title = fields.get("title", "")
+                data = json.loads(data_raw or "{}")
+                file_item = files.get("pdf")
 
-    ics = f"""BEGIN:VCALENDAR
-VERSION:2.0
-BEGIN:VEVENT
-DTSTART:{fmt(start)}
-DTEND:{fmt(end)}
-SUMMARY:{summary}
-END:VEVENT
-END:VCALENDAR"""
+                if not sheet:
+                    return self.send_json({"ok": False, "error": "Type de caisse manquant."}, status=400)
+                if not file_item or not file_item.get("filename"):
+                    return self.send_json({"ok": False, "error": "PDF manquant."}, status=400)
+                if not str(file_item.get("filename", "")).lower().endswith(".pdf"):
+                    return self.send_json({"ok": False, "error": "Le fichier doit être un PDF."}, status=400)
+                if not file_item.get("content"):
+                    return self.send_json({"ok": False, "error": "Le PDF est vide."}, status=400)
 
-    from flask import Response
-    return Response(ics, mimetype='text/calendar')
+                with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                    tmp.write(file_item["content"])
+                    tmp_path = Path(tmp.name)
+                try:
+                    record = register_notice(sheet, data, title, tmp_path)
+                finally:
+                    try:
+                        tmp_path.unlink()
+                    except Exception:
+                        pass
+                return self.send_json({"ok": True, "notice": notice_record_to_api(record)})
+            except Exception as exc:
+                return self.send_json({"ok": False, "error": str(exc)}, status=500)
+        if parsed.path == "/api/fiche-pdf":
+            length = int(self.headers.get("Content-Length", "0") or 0)
+            raw = self.rfile.read(length) if length else b"{}"
+            try:
+                payload = json.loads(raw.decode("utf-8") or "{}")
+                sheet = payload.get("sheet") or "Chiffrage"
+                data = payload.get("data") or {}
+                result = payload.get("result") or calculate_sheet(sheet, data)
+                pdf_bytes = generate_internal_fiche_pdf(sheet, data, result)
+                filename = f"fiche_chiffrage_{str(sheet).replace(' ', '_').replace('/', '-')}.pdf"
+                self.send_response(200)
+                self.send_header("Content-Type", "application/pdf")
+                self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+                self.send_header("Content-Length", str(len(pdf_bytes)))
+                self.end_headers()
+                self.wfile.write(pdf_bytes)
+                return
+            except Exception as exc:
+                return self.send_json({"ok": False, "error": str(exc)}, status=500)
+        self.send_error(404)
 
 
+def main():
+    print(f"Matrice de chiffrage ESI : http://{HOST}:{PORT}")
+    server = ThreadingHTTPServer((HOST, PORT), Handler)
+    server.serve_forever()
 
-def open_browser():
-    webbrowser.open('http://127.0.0.1:5050/splash')
 
-ensure_shared_root()
-init_db()
-
-if __name__ == '__main__':
-      app.run(host='127.0.0.1', port=5050, debug=False)
+if __name__ == "__main__":
+    main()
